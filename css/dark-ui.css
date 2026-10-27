@@ -297,6 +297,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #settings-container .gameplay-entry-desc { margin-bottom: 16px; line-height: 1.6; }
 #settings-container .settings-buttons { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px; }
 #settings-container .setting-btn { min-height: 40px; padding: 9px 12px; border: 1px solid #31575a; border-radius: 4px; background: #15292d; color: var(--text-primary); font-weight: 600; transition: background .2s, border-color .2s; }
+#settings-container .settings-source-link { display: inline-flex; align-items: center; margin-top: 8px; text-decoration: none; }
 #settings-container .setting-btn:hover { background: #1d3c3f; border-color: var(--accent); }
 #settings-container .setting-btn.danger { background: #2c1b20; border-color: #633b43; color: #ff9ba3; }
 #settings-container .setting-btn.danger:hover { background: #43252c; border-color: #ef7580; }
