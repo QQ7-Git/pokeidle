@@ -688,7 +688,7 @@ class GameUI {
             // 蛇形身長包含彎曲身體；魚形以長邊與畫面高度混合估計。
             const silhouette = Math.min(1, visibleHeight / Math.max(visibleWidth, visibleHeight));
             const posture = shape === 2 ? 0.45 + 0.2 * silhouette : shape === 3 ? 0.6 + 0.4 * silhouette : 1;
-            const size = Math.max(0.45, Math.min(1, (POKEMON_HEIGHTS[id] || 10) / 20 * posture));
+            const size = Math.max(0.15, Math.min(1, (POKEMON_HEIGHTS[id] || 10) / 20 * posture));
             return { container, image, fraction, aspect, desired: container.clientHeight * size };
         }).filter(Boolean);
         if (!sprites.length) return;
