@@ -13,6 +13,8 @@
 
 ## 開始冒險
 
+**線上遊玩：** [https://qq7-git.github.io/pokeidle/](https://qq7-git.github.io/pokeidle/)
+
 下載專案後，以瀏覽器開啟 **`index.html`** 即可遊玩，無須安裝套件或建置。首次進入時可查看遊戲指引與免責聲明。
 
 ```text
@@ -69,6 +71,8 @@ docs/               文件素材
 ---
 
 ## 📄 原始專案與授權
+
+修改版日期：2026-10-27。
 
 本專案基於 [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）開源，完整授權條款見 `LICENSE`。提供本程式給其他人或讓他們透過網路使用修改版時，須依授權條款提供對應原始碼並保留相關聲明。
 
