@@ -656,7 +656,10 @@ class GameUI {
         this._setBattleSkills('player-battle-skill', skills, selected.type);
         const towerSkill = this.game._towerMode && this.game.currentBattle?.wild?.isTowerEnemy
             ? this.game._getTowerEnemySkill(enemyId, POKEMON_DATA[playerId]?.types || []) : null;
-        const enemySkills = towerSkill ? [towerSkill] : [];
+        const enemySkills = towerSkill ? (POKEMON_DATA[enemyId]?.types || []).flatMap(type => {
+            const skill = SKILL_DATA[type]?.find(entry => entry.level === MAX_SKILL_LEVEL);
+            return skill ? [{ ...skill, type }] : [];
+        }) : [];
         this._setBattleSkills('enemy-battle-skill', enemySkills, towerSkill?.type || '');
     }
 
@@ -670,8 +673,10 @@ class GameUI {
             const label = document.createElement('span');
             label.textContent = skill.name;
             label.className = `type-badge ${TYPE_NAMES[skill.type] ? skill.type : 'battle-skill-basic'}`;
-            if (skills.length > 1 && skill.type === selectedType) {
-                label.classList.add('battle-skill-selected');
+            if (skills.length > 1 && skill.type !== selectedType) {
+                label.classList.add('battle-skill-unused');
+                label.title = '目前未使用的技能';
+            } else if (skill.type === selectedType && selectedType) {
                 label.title = '目前使用的技能';
             }
             container.appendChild(label);

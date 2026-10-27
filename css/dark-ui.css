@@ -85,7 +85,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #battle-scene .pokemon-battle-info .hp-bar-wrapper { position: relative; }
 .battle-skill-label { position: absolute; top: calc(100% + 2px); left: 0; right: 0; display: flex; gap: 4px; height: 17px; line-height: 17px; overflow: hidden; pointer-events: none; }
 .battle-skill-label .type-badge { min-width: 0; max-width: 100%; padding: 0 6px; font-size: 11px; line-height: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.battle-skill-label .battle-skill-selected { box-shadow: inset 0 0 0 1px rgba(255,255,255,.9); }
+.battle-skill-label .battle-skill-unused { background: #596168; color: #d5d9dc; }
 .battle-skill-label .battle-skill-basic { background: #46535a; color: #fff; }
 #battle-scene .pokemon-battle-info .atk-bar-container { transform: translateY(20px); }
 @media (min-width: 900px) { #battle-scene .pokemon-battle-info { height: 112px; padding-bottom: 32px; } }
