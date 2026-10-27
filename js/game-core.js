@@ -2471,6 +2471,57 @@ class GameCore {
     // 未來模式僅在同步計算期間模擬等級，無論成功與否都恢復實際存檔。
     recommendTeamForEnemy(enemy, targetLevel = null) {
         if (targetLevel !== null && (!Number.isInteger(targetLevel) || targetLevel < 1 || targetLevel > MAX_POKEMON_LEVEL)) return null;
+        if (targetLevel !== null) {
+            const original = this.gameState;
+            const owned = Object.keys(original.pokedex).filter(id => original.pokedex[id] === 'caught' && original.caughtPokemon[id] && POKEMON_DATA[id]).map(Number);
+            try {
+                this.gameState = structuredClone(original);
+                const simulated = this.gameState;
+                for (const id of owned) {
+                    simulated.caughtPokemon[id].level = targetLevel;
+                    simulated.caughtPokemon[id].skillLevel = MAX_SKILL_LEVEL;
+                }
+                const candidates = new Set(owned);
+                this._recommendVirtualIds = new Set();
+                for (const sourceId of owned) {
+                    for (const id of this.getAllEvolutions(sourceId)) {
+                        if (!POKEMON_DATA[id] || candidates.has(id)) continue;
+                        candidates.add(id);
+                        this._recommendVirtualIds.add(String(id));
+                        simulated.caughtPokemon[id] = { ...simulated.caughtPokemon[sourceId], ivs: { ...simulated.caughtPokemon[sourceId].ivs }, level: targetLevel, skillLevel: MAX_SKILL_LEVEL };
+                        if (simulated.shinyDex[sourceId]) simulated.shinyDex[id] = true;
+                    }
+                }
+                const result = this._recommendTeamForEnemy(enemy, [...candidates], true);
+                if (!result) return null;
+                result.simulatedIds = result.team.filter(id => !owned.includes(id));
+                const ownedSet = new Set(owned);
+                const used = new Set();
+                result.applyTeam = result.team.map(id => {
+                    const descendants = [id, ...this.getAllEvolutions(id)].filter(candidate => ownedSet.has(candidate) && !used.has(candidate));
+                    const depth = candidate => {
+                        let n = 0;
+                        while (candidate !== id && this._baseIdCache[candidate] !== undefined) { candidate = this._baseIdCache[candidate]; n++; }
+                        return candidate === id ? n : -1;
+                    };
+                    descendants.sort((a, b) => depth(b) - depth(a));
+                    if (descendants.length) { used.add(descendants[0]); return descendants[0]; }
+                    let current = id;
+                    while ((!ownedSet.has(current) || used.has(current)) && this._baseIdCache[current] !== undefined) current = this._baseIdCache[current];
+                    if (!ownedSet.has(current) || used.has(current)) return null;
+                    used.add(current);
+                    return current;
+                }).filter(id => id !== null);
+                for (const id of [...original.team, ...owned]) {
+                    if (result.applyTeam.length >= Math.min(6, owned.length)) break;
+                    if (ownedSet.has(id) && !used.has(id)) { result.applyTeam.push(id); used.add(id); }
+                }
+                return result;
+            } finally {
+                delete this._recommendVirtualIds;
+                this.gameState = original;
+            }
+        }
         const savedLevels = [];
         try {
             if (targetLevel !== null) {
@@ -2489,7 +2540,7 @@ class GameCore {
     }
 
     // 依目前道路的敵人與出現權重，比較多種候選隊伍。
-    _recommendTeamForEnemy(enemy) {
+    _recommendTeamForEnemy(enemy, candidateIds = null, refine = false) {
         const route = this.getRoute(this.gameState?.currentRoute);
         if (!enemy || !POKEMON_DATA[enemy.id] || !route?.pokemon?.length || !this.gameState.team?.length) return null;
         const reduceWeight = this.getBadgeEffectValue('completed_weight_reduce');
@@ -2511,7 +2562,7 @@ class GameCore {
         }
         if (!profiles.length) return null;
         const totalWeight = profiles.reduce((sum, profile) => sum + profile.weight, 0);
-        const candidates = Object.keys(this.gameState.pokedex)
+        const candidates = candidateIds || Object.keys(this.gameState.pokedex)
             .filter(id => this.gameState.pokedex[id] === 'caught' && POKEMON_DATA[id] && this.getStoredData(id))
             .map(Number);
         if (!candidates.length) return null;
@@ -2520,11 +2571,15 @@ class GameCore {
             const skill = this._getBestSkillForEnemy(id, profile.types);
             const power = skill.power > 0 ? skill.power : 50;
             const damage = Math.floor(((2 * pokemon.level / 5 + 2) * power * stats.attack / profile.stats.defense) / 50) + 2;
-            const effectiveness = getBestTypeEffectiveness(POKEMON_DATA[id].types || [], profile.types).multiplier;
+            const effectiveness = getBestTypeEffectiveness(refine && skill.type ? [skill.type] : (POKEMON_DATA[id].types || []), profile.types).multiplier;
             const estimatedDamage = Math.floor(damage * effectiveness);
             const minDamage = Math.max(1, Math.floor(estimatedDamage * 0.85));
             const interval = this.getAttackInterval(stats.speed);
-            return { time: Math.ceil(profile.stats.hp / minDamage) * interval, interval, level: pokemon.level, canOneShot: minDamage >= profile.stats.hp, dps: estimatedDamage / interval };
+            const time = Math.ceil(profile.stats.hp / minDamage) * interval;
+            const enemyEffect = getBestTypeEffectiveness(profile.types, POKEMON_DATA[id].types || []).multiplier;
+            const incoming = Math.max(1, Math.floor((Math.floor(((2 * profile.wild.level / 5 + 2) * 50 * profile.stats.attack / Math.max(1, stats.defense)) / 50) + 2) * enemyEffect));
+            const threatened = refine && Math.floor(time / this.getAttackInterval(profile.stats.speed)) * incoming >= stats.hp;
+            return { time: time + (threatened ? 60000 : 0), interval, level: pokemon.level, canOneShot: minDamage >= profile.stats.hp, dps: estimatedDamage / interval };
         };
         const ranked = candidates.map(id => {
             const pokemon = this.createPokemon(id, true);
@@ -2535,14 +2590,28 @@ class GameCore {
             const average = times.reduce((sum, time, i) => sum + time * profiles[i].weight, 0) / totalWeight;
             return { id, power, potential, times, score: 1 / average };
         });
-        const select = score => [...ranked].sort((a, b) => score(b) - score(a) || a.id - b.id).slice(0, 6).map(item => item.id);
+        const familyLimits = new Map();
+        if (refine) for (const id of candidates) {
+            if (this.gameState.pokedex[id] !== 'caught') continue;
+            const base = this.getBasePokemonId(id);
+            familyLimits.set(base, (familyLimits.get(base) || 0) + 1);
+        }
+        const canAdd = (team, id) => !refine || team.filter(other => this.getBasePokemonId(other) === this.getBasePokemonId(id)).length < (familyLimits.get(this.getBasePokemonId(id)) || 0);
+        const select = score => {
+            const team = [];
+            for (const item of [...ranked].sort((a, b) => score(b) - score(a) || a.id - b.id)) {
+                if (canAdd(team, item.id)) team.push(item.id);
+                if (team.length === 6) break;
+            }
+            return team;
+        };
         // 貪婪補齊不同敵人的剋制覆蓋，再以實際隊伍加成重新評估。
         const coverage = [];
         const coveredTimes = profiles.map(() => Infinity);
         while (coverage.length < Math.min(6, ranked.length)) {
             let chosen = null, bestTime = Infinity;
             for (const candidate of ranked) {
-                if (coverage.includes(candidate.id)) continue;
+                if (coverage.includes(candidate.id) || !canAdd(coverage, candidate.id)) continue;
                 const time = candidate.times.reduce((sum, value, i) => sum + Math.min(value, coveredTimes[i]) * profiles[i].weight, 0);
                 if (time < bestTime) { bestTime = time; chosen = candidate; }
             }
@@ -2558,7 +2627,7 @@ class GameCore {
         const strategy = this.gameState.settings?.oneShotStrategy || 'fastest';
         let best = null;
         try {
-            for (const team of teams) {
+            const evaluate = team => {
                 this.gameState.team = team;
                 this.gameState.activePokemonIndex = Math.max(0, team.indexOf(originalActive));
                 const teamStats = team.map((_, i) => this.calculateBattleStats(i));
@@ -2585,7 +2654,28 @@ class GameCore {
                     activeIndex = averages.indexOf(Math.min(...averages));
                     averageTime = averages[activeIndex];
                 }
-                if (!best || averageTime < best.averageTime) best = { team: team.slice(), activeIndex, averageTime, routeId: route.id };
+                return { team: team.slice(), activeIndex, averageTime, routeId: route.id };
+            };
+            for (const team of teams) {
+                const result = evaluate(team);
+                if (!best || result.averageTime < best.averageTime) best = result;
+            }
+            if (refine && best) {
+                const shortlist = [...new Set([...select(p => p.power), ...select(p => p.score), ...coverage, ...ranked.sort((a, b) => b.score - a.score).slice(0, 18).map(p => p.id)])];
+                for (let pass = 0; pass < 2; pass++) {
+                    let improved = false;
+                    for (let slot = 0; slot < best.team.length; slot++) {
+                        for (const id of shortlist) {
+                            if (best.team.includes(id)) continue;
+                            const team = best.team.slice();
+                            team[slot] = id;
+                            if (!canAdd(team.filter((_, index) => index !== slot), id)) continue;
+                            const result = evaluate(team);
+                            if (result.averageTime < best.averageTime) { best = result; improved = true; }
+                        }
+                    }
+                    if (!improved) break;
+                }
             }
         } finally {
             this.gameState.team = originalTeam;
@@ -3289,6 +3379,10 @@ class GameCore {
             if (!parsed.talents) parsed.talents = {};
             // 挑戰塔系統相容
             if (!parsed.tower) parsed.tower = { currentFloor: 1, highestFloor: 0, enemies: null, currentEnemyIndex: 0, inBattle: false };
+            if (parsed.tower.replayPrevious) {
+                Object.assign(parsed.tower, parsed.tower.replayPrevious);
+                delete parsed.tower.replayPrevious;
+            }
             if (parsed.tower.inBattle) {
                 // 重新整理頁面時如果正在挑戰中，重置為未挑戰狀態（不丟失層數進度）
                 parsed.tower.inBattle = false;
@@ -3409,6 +3503,7 @@ class GameCore {
             this._towerMode = false;
             this._towerFaintedIds = null;
             this._towerHpById = null;
+            if (this.gameState.tower?.replayPrevious) this._restoreTowerReplay();
             if (this.gameState.tower?.inBattle) {
                 this.gameState.tower.inBattle = false;
                 this.gameState.tower.currentEnemyIndex = 0;
@@ -4400,6 +4495,7 @@ class GameCore {
     getSkillLevelSum() {
         let sum = 0;
         for (const id in this.gameState.caughtPokemon) {
+            if (this._recommendVirtualIds?.has(id)) continue;
             sum += (this.gameState.caughtPokemon[id].skillLevel || 0);
         }
         return sum;
@@ -4661,10 +4757,18 @@ class GameCore {
     }
 
     // 進入挑戰塔（暫停主線戰鬥，初始化當前層）
-    enterTower() {
+    enterTower(replayHighest = false) {
         if (!this.isTowerUnlocked()) return { success: false, message: '極限對戰塔未解鎖' };
 
         const tower = this.gameState.tower;
+        if (this._towerMode) return { success: false, message: '正在挑戰對戰塔' };
+        if (replayHighest) {
+            if (!tower.highestFloor) return { success: false, message: '尚未通關任何樓層' };
+            tower.replayPrevious = { currentFloor: tower.currentFloor, enemies: tower.enemies, currentEnemyIndex: tower.currentEnemyIndex };
+            tower.currentFloor = tower.highestFloor;
+            tower.enemies = null;
+            tower.currentEnemyIndex = 0;
+        }
 
         // 如果當前層沒有敵人，生成新的（只存id列表）
         if (!tower.enemies) {
@@ -4696,9 +4800,18 @@ class GameCore {
         this._towerBattle = null;
         this.gameState.tower.inBattle = false;
         this.gameState.tower.currentEnemyIndex = 0;
+        this._restoreTowerReplay();
         this.save();
         // 恢復主線戰鬥
         this.startBattle();
+    }
+
+    _restoreTowerReplay() {
+        const tower = this.gameState.tower;
+        if (!tower.replayPrevious) return false;
+        Object.assign(tower, tower.replayPrevious);
+        delete tower.replayPrevious;
+        return true;
     }
 
     // 開始挑戰塔當前層的戰鬥（與當前敵人開始戰鬥）
@@ -4791,11 +4904,12 @@ class GameCore {
             }
 
             // 推進到下一層
-            if (tower.currentFloor < TOWER_MAX_FLOOR) {
+            if (!tower.replayPrevious && tower.currentFloor < TOWER_MAX_FLOOR) {
                 tower.currentFloor++;
             }
             tower.enemies = null;
             tower.currentEnemyIndex = 0;
+            this._restoreTowerReplay();
             tower.inBattle = false;
             this._towerMode = false;
             this._towerFaintedIds = null;
@@ -4852,6 +4966,8 @@ class GameCore {
         this._towerPlayerHpPercent = 1;
         this.gameState.tower.inBattle = false;
         this.gameState.tower.currentEnemyIndex = 0;
+
+        this._restoreTowerReplay();
 
         this.save();
     }

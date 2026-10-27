@@ -1004,20 +1004,21 @@ class GameUI {
             return;
         }
         result.targetLevel = targetLevel;
+        const applyTeam = result.applyTeam || result.team;
         const originalTeam = this.game.gameState.team.slice();
         const autoSwitch = !!this.game.gameState.settings?.autoSwitchBest;
         const strategy = this.game.gameState.settings?.oneShotStrategy || 'fastest';
         this.showTeamRecommendation(result, () => {
-            if (this.game._towerMode || this.game._offlineSimState || this.game.healTimer || this.game._nextBattleTimeout || !this.game.currentBattle?.wild || this.game.currentBattle.wildCurrentHp <= 0 || this.game.gameState.currentRoute !== result.routeId || !!this.game.gameState.settings?.autoSwitchBest !== autoSwitch || (this.game.gameState.settings?.oneShotStrategy || 'fastest') !== strategy || this.game.gameState.team.length !== originalTeam.length || this.game.gameState.team.some((id, i) => id !== originalTeam[i]) || result.team.some(id => this.game.gameState.pokedex[id] !== 'caught')) {
+            if (this.game._towerMode || this.game._offlineSimState || this.game.healTimer || this.game._nextBattleTimeout || !this.game.currentBattle?.wild || this.game.currentBattle.wildCurrentHp <= 0 || this.game.gameState.currentRoute !== result.routeId || !!this.game.gameState.settings?.autoSwitchBest !== autoSwitch || (this.game.gameState.settings?.oneShotStrategy || 'fastest') !== strategy || this.game.gameState.team.length !== originalTeam.length || this.game.gameState.team.some((id, i) => id !== originalTeam[i]) || applyTeam.some(id => this.game.gameState.pokedex[id] !== 'caught')) {
                 this.showToast('⚠️ 遊戲狀態已改變，請重新預覽');
                 return;
             }
             const oldActiveId = this.game.gameState.team[this.game.gameState.activePokemonIndex];
-            this.game.gameState.team = result.team.slice();
-            result.team.filter(id => !originalTeam.includes(id)).forEach(id => this.setDefaultTeamSprite(id));
+            this.game.gameState.team = applyTeam.slice();
+            applyTeam.filter(id => !originalTeam.includes(id)).forEach(id => this.setDefaultTeamSprite(id));
             let activeIndex = result.activeIndex;
             if (targetLevel !== null || (autoSwitch && this.game.currentBattle.wild !== enemy)) {
-                this.game.gameState.activePokemonIndex = Math.max(0, result.team.indexOf(oldActiveId));
+                this.game.gameState.activePokemonIndex = Math.max(0, applyTeam.indexOf(oldActiveId));
                 const currentBest = this.game.getBestTeamMemberForEnemy(this.game.currentBattle.wild);
                 if (currentBest >= 0) activeIndex = currentBest;
             }
@@ -1040,7 +1041,8 @@ class GameUI {
             const stored = this.game.getStoredData(id);
             const shiny = this.game.gameState.pokedexDisplay[id] === 'shiny';
             const url = shiny ? getShinyPokemonSpriteUrl(id) : getPokemonSpriteUrl(id);
-            return `<div class="recommend-pokemon"><img src="${url}" alt="${data.name}" onerror="fallbackPokemonSprite(this, ${id}, ${!!shiny}, '🔵')"><div><span class="recommend-label">${label}${active ? (result.targetLevel !== null ? ' · 模擬出戰' : ' · 建議出戰') : ''}</span><strong>${data.name}</strong><small>實際 Lv.${stored?.level || 1}</small></div></div>`;
+            const virtual = result.simulatedIds?.includes(id);
+            return `<div class="recommend-pokemon"><img src="${url}" alt="${data.name}" onerror="fallbackPokemonSprite(this, ${id}, ${!!shiny}, '🔵')"><div><span class="recommend-label">${label}${active ? (result.targetLevel !== null ? ' · 模擬出戰' : ' · 建議出戰') : ''}</span><strong>${data.name}</strong><small>${virtual ? '尚未擁有・模擬進化' : `實際 Lv.${stored?.level || 1}`}</small></div></div>`;
         };
         const pairs = [];
         for (let i = 0; i < Math.max(removed.length, added.length); i++) {
@@ -1048,7 +1050,8 @@ class GameUI {
         }
         const retained = unchanged.map(id => sprite(id, '保留', id === proposed[result.activeIndex])).join('');
         document.getElementById('team-recommend-content').innerHTML = `
-            <div class="recommend-summary">${result.targetLevel !== null ? `未來潛力 · 模擬 Lv.${result.targetLevel}（不代表目前戰力）` : '現在最強 · 實際等級'}<br>${pairs.length ? `隊伍變更 ${pairs.length} 組` : '目前隊伍已是本次比較的推薦結果'} · 道路預估 ${Math.round(result.averageTime / 100) / 10} 秒／場</div>
+            <div class="recommend-summary">${result.targetLevel !== null ? `未來潛力 · 模擬 Lv.${result.targetLevel}（不代表目前戰力）` : '現在最強 · 實際等級'}<br>${pairs.length ? `隊伍變更 ${pairs.length} 組` : '目前隊伍已是本次比較的推薦結果'} · ${result.targetLevel !== null ? '綜合分數（秒，含倒下風險懲罰）' : '道路預估（秒／場）'} ${Math.round(result.averageTime / 100) / 10}</div>
+            ${result.targetLevel !== null ? `<div class="recommend-summary">模擬技能滿級及未擁有的進化，不檢查地區解鎖；圖鑑加成僅計已擁有。套用隊伍：${result.applyTeam.map(id => POKEMON_DATA[id].name).join('、')}。實際戰力可能低於模擬。</div>` : ''}
             ${pairs.length ? `<div class="recommend-pairs">${pairs.join('')}</div>` : ''}
             ${retained ? `<h3 class="recommend-subtitle">保留的隊員</h3><div class="recommend-retained">${retained}</div>` : ''}`;
         const dialog = document.getElementById('team-recommend-dialog');
@@ -4173,6 +4176,11 @@ class GameUI {
         // 操作按鈕狀態
         const startBtn = document.getElementById('btn-tower-start');
         const fleeBtn = document.getElementById('btn-tower-flee');
+        const replayBtn = document.getElementById('btn-tower-replay');
+        if (replayBtn) {
+            replayBtn.style.display = !this.game._towerMode && tower.highestFloor > 0 ? 'inline-block' : 'none';
+            replayBtn.textContent = `🔄 重複挑戰第 ${tower.highestFloor} 層（重新抽取敵人）`;
+        }
         if (startBtn) {
             if (this.game._towerMode) {
                 startBtn.style.display = 'none';
@@ -4204,6 +4212,16 @@ class GameUI {
     _setupTowerEvents() {
         const startBtn = document.getElementById('btn-tower-start');
         const fleeBtn = document.getElementById('btn-tower-flee');
+        const replayBtn = document.getElementById('btn-tower-replay');
+
+        if (replayBtn) replayBtn.addEventListener('click', () => {
+            const result = this.game.enterTower(true);
+            if (!result.success) { this.showToast(result.message); return; }
+            this.renderTowerPage();
+            this.switchTab('tab-battle');
+            this.addBattleLog(`🗼 重複挑戰極限對戰塔第 ${this.game.gameState.tower.currentFloor} 層！`, 'evolution');
+            this.game.startTowerBattle();
+        });
 
         if (startBtn) {
             startBtn.addEventListener('click', () => {

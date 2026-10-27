@@ -254,6 +254,7 @@
                     <!-- 操作按鈕 -->
                     <div id="tower-actions">
                         <button id="btn-tower-start" class="tower-action-btn start">⚔️ 開始挑戰</button>
+                        <button id="btn-tower-replay" class="tower-action-btn start" style="display:none;">🔄 重複挑戰最高層</button>
                         <button id="btn-tower-flee" class="tower-action-btn flee" style="display:none;">🏃 撤退</button>
                     </div>
                 </div>
@@ -400,7 +401,7 @@
         <div class="stat-dialog-header"><h2 id="team-recommend-options-title">選擇推薦模式</h2><form method="dialog"><button class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
         <form id="team-recommend-options-form" class="recommend-options-form">
             <label class="recommend-option"><input type="radio" name="recommend-mode" value="current" checked><span><strong>現在最強</strong><small>使用目前等級，推薦現在適合刷圖的隊伍。</small></span></label>
-            <label class="recommend-option"><input type="radio" name="recommend-mode" value="future"><span><strong>未來潛力</strong><small>自動以所有已捕獲寶可夢的最高等級乘以 5 模擬，不超過等級上限；實際等級不變。</small></span></label>
+            <label class="recommend-option"><input type="radio" name="recommend-mode" value="future"><span><strong>未來潛力</strong><small>以最高等級 × 5（不超過上限）、滿級技能與進化形態模擬；套用時只使用已擁有形態。</small></span></label>
             <p class="recommend-desc">未來模式沿用目前的技能、個體值、樹果及閃光狀態，不預測升級時間或進化。推薦隊員現在可能尚不足以應付道路。</p>
             <div class="recommend-actions"><button type="button" id="cancel-recommend-options" class="recommend-cancel">取消</button><button type="submit">計算推薦</button></div>
         </form>
