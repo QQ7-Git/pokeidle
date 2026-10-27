@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PokéIdle</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/dark-ui.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 頂部狀態列 -->
+        <header id="header">
+            <div class="brand-mark" aria-hidden="true"><span></span></div>
+            <div class="brand-copy"><h1 class="brand-eyebrow">PokéIdle</h1></div>
+        </header>
+
+        <!-- 主內容區 -->
+        <main id="main-content">
+            <!-- Tab 1: 戰鬥介面 -->
+            <div id="tab-battle" class="tab-content active">
+                <div id="battle-area">
+                    <div id="battle-scene">
+                        <div id="enemy-side">
+                            <div id="enemy-info" class="pokemon-battle-info">
+                                <span id="enemy-name">???</span>
+                                <span id="enemy-level">Lv.?</span>
+                                <div id="enemy-types" class="battle-types"></div>
+                                <div class="hp-bar-wrapper">
+                                    <div class="hp-bar-container">
+                                        <div id="enemy-hp-bar" class="hp-bar"></div>
+                                        <span id="enemy-hp-text" class="hp-text"></span>
+                                    </div>
+                                    <div id="enemy-battle-skill" class="battle-skill-label"><span class="type-badge battle-skill-basic">普通攻擊</span></div>
+                                </div>
+                                <div class="atk-bar-container">
+                                    <span class="atk-bar-label">⚔️</span>
+                                    <div class="atk-bar-track">
+                                        <div id="enemy-atk-bar" class="atk-bar-fill enemy"></div>
+                                    </div>
+                                </div>
+                                <div id="enemy-matchup" class="matchup-indicator"></div>
+                            </div>
+                            <div id="enemy-sprite" class="pokemon-sprite"></div>
+                        </div>
+                        <div id="player-side">
+                            <div id="player-sprite" class="pokemon-sprite"></div>
+                            <div id="player-info" class="pokemon-battle-info">
+                                <span id="player-name">???</span>
+                                <span id="player-level">Lv.?</span>
+                                <div id="player-types" class="battle-types"></div>
+                                <div class="hp-bar-wrapper">
+                                    <div class="hp-bar-container">
+                                        <div id="player-hp-bar" class="hp-bar"></div>
+                                        <span id="player-hp-text" class="hp-text"></span>
+                                    </div>
+                                    <div id="player-battle-skill" class="battle-skill-label"><span class="type-badge battle-skill-basic">普通攻擊</span></div>
+                                </div>
+                                <div class="atk-bar-container">
+                                    <span class="atk-bar-label">⚔️</span>
+                                    <div class="atk-bar-track">
+                                        <div id="player-atk-bar" class="atk-bar-fill player"></div>
+                                    </div>
+                                </div>
+                                <div id="player-matchup" class="matchup-indicator"></div>
+                            </div>
+                        </div>
+                        <div id="type-matchup" class="type-matchup-info"></div>
+                    </div>
+                    <p class="battle-scale-note">圖片依雙方寶可夢的大小比例調整，顯示比例為近似值。</p>
+                    <div id="battle-log">
+                        <div class="log-panel">
+                            <div class="log-panel-heading">⚔️ 戰鬥紀錄</div>
+                            <div id="battle-messages" class="log-messages"></div>
+                        </div>
+                        <div class="log-panel">
+                            <div class="log-panel-heading">🎯 捕獲紀錄</div>
+                            <div id="capture-messages" class="log-messages"></div>
+                        </div>
+                    </div>
+                </div>
+                <div id="info-panel">
+                    <div id="panel-team" class="panel-content active">
+                        <div id="team-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 2: 地圖介面 -->
+            <div id="tab-map" class="tab-content">
+                <div class="map-heading"><span class="map-eyebrow">WORLD EXPLORATION</span><h2>探索地圖</h2><p>選擇地區與道路，探索不同的寶可夢。</p></div>
+                <div id="map-container">
+                    <div id="region-panel">
+                        <h2>🗺️ 選擇地區</h2>
+                        <div id="region-list"></div>
+                    </div>
+                    <div id="route-panel">
+                        <h2 id="region-title">請選擇地區</h2>
+                        <div id="route-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 3: 徽章介面 -->
+            <div id="tab-badge" class="tab-content">
+                <div id="badge-container">
+                    <!-- 金幣資訊 -->
+                    <div id="badge-header">
+                        <div><span class="badge-eyebrow">BADGE & GEM CENTER</span><h2>徽章與寶石</h2><p class="badge-header-desc">收集地區徽章，鑲嵌寶石強化你的隊伍。</p></div>
+                        <div id="gold-display">🪙 <span id="gold-amount">0</span></div>
+                    </div>
+                    <div class="badge-workspace">
+                    <div class="badge-region-column">
+                    <!-- 徽章列表 -->
+                    <div id="badge-region-heading" class="badge-section-heading"><h3>🏅 地區徽章</h3><span>REGION BADGES</span></div>
+                    <div id="badge-list"></div>
+                    </div>
+                    <div class="badge-gem-column">
+                    <!-- 商店 -->
+                    <div id="shop-section">
+                        <h3>🏪 寶石商店</h3>
+                        <p class="shop-desc">花費金幣購買隨機寶石，鑲嵌到徽章中增強能力</p>
+                        <div id="shop-actions">
+                            <button id="btn-buy-gem" class="shop-buy-btn">🪙 1000 購買寶石</button>
+                            <button id="btn-buy-all-gems" class="shop-buy-btn batch" title="快捷鍵 B">🛒 全部購買 (B)</button>
+                            <span id="gem-bag-count">揹包: 0/50</span>
+                        </div>
+                        <div id="synthesis-actions">
+                            <button class="gem-synthesis-btn" data-target-quality="magic">✨ 合成魔法寶石</button>
+                            <button class="gem-synthesis-btn" data-target-quality="rare">✨ 合成稀有寶石</button>
+                            <button class="gem-synthesis-btn" data-target-quality="epic">✨ 合成史詩寶石</button>
+                            <button class="gem-synthesis-btn" data-target-quality="mythic">✨ 合成神話寶石</button>
+                            <button class="gem-synthesis-btn" data-target-quality="legendary">✨ 合成傳說寶石</button>
+                            <button class="gem-synthesis-btn" data-target-quality="eternal">✨ 合成永恆寶石</button>
+                            <button id="btn-reforge-eternal" class="gem-synthesis-btn reforge">🔨 重鑄永恆寶石</button>
+                            <button id="btn-synthesize-all" class="gem-synthesis-btn batch" title="快捷鍵 S">🔄 一鍵合成 (S)</button>
+                            <button id="btn-auto-eternal" class="gem-synthesis-btn eternal" style="display:none">💎 一鍵購買併合成永恆</button>
+                        </div>
+                    </div>
+                    <!-- 寶石揹包 -->
+                    <div id="gem-bag-section">
+                        <h3>💎 寶石揹包</h3>
+                        <div id="gem-bag-list"></div>
+                    </div>
+                    <!-- 寶石加成總覽 -->
+                    <div id="gem-bonus-section">
+                        <h3>📊 寶石加成總覽</h3>
+                        <div id="gem-bonus-list"></div>
+                    </div>
+                    </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 4: 樹果介面 -->
+            <div id="tab-berry" class="tab-content">
+                <div id="berry-container">
+                    <div id="berry-header">
+                        <div><span class="berry-eyebrow">BERRY GARDEN</span><h2>樹果花園</h2><p class="berry-header-desc">種植、採收樹果，培育你的寶可夢。</p></div>
+                        <div class="berry-header-right">
+                            <div id="berry-bag-summary"></div>
+                            <div id="berry-gold-display">🪙 <span id="berry-gold-amount">0</span></div>
+                        </div>
+                    </div>
+                    <!-- 種植區 -->
+                    <div id="berry-garden-section">
+                        <h3>🌿 種植區 <span id="berry-plot-count">0/10</span></h3>
+                        <div id="berry-garden-actions">
+                            <button id="btn-harvest-all" class="berry-action-btn harvest">🧺 一鍵採摘</button>
+                        </div>
+                        <div id="berry-plots-grid"></div>
+                    </div>
+                    <!-- 揹包 -->
+                    <div id="berry-bag-section">
+                        <h3>🎒 樹果揹包</h3>
+                        <div id="berry-bag-grid"></div>
+                    </div>
+                    <!-- 種植選擇 -->
+                    <div id="berry-plant-section">
+                        <h3>🌰 購買種子</h3>
+                        <p class="berry-plant-desc">花費50,000金幣購買種子種植，5小時後成熟可採摘1~2個樹果</p>
+                        <div id="berry-plant-grid"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 5: 技能介面 -->
+            <div id="tab-skill" class="tab-content">
+                <div id="skill-container">
+                    <div id="skill-header">
+                        <h2>⚡ 技能系統</h2>
+                        <button id="btn-upgrade-all-skills" class="skill-upgrade-all" type="button" style="display:none">⚡ 一鍵升級技能</button>
+                    </div>
+                    <!-- 規則說明 -->
+                    <div id="skill-rules-section">
+                        <h3>📋 技能規則</h3>
+                        <div id="skill-rules-content"></div>
+                    </div>
+                    <!-- 技能列表 -->
+                    <div id="skill-table-section">
+                        <h3>📊 各屬性技能一覽</h3>
+                        <div id="skill-table-content"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 5.5: 天賦介面 -->
+            <div id="tab-talent" class="tab-content">
+                <div id="talent-container">
+                    <div id="talent-header">
+                        <h2>🌟 天賦系統</h2>
+                        <div id="talent-points-display"></div>
+                    </div>
+                    <!-- 規則說明 -->
+                    <div id="talent-rules-section">
+                        <h3>📋 天賦規則</h3>
+                        <div id="talent-rules-content"></div>
+                    </div>
+                    <!-- 操作區 -->
+                    <div id="talent-actions">
+                        <button id="btn-reset-talents" class="talent-reset-btn">🔄 重置天賦（100萬金幣）</button>
+                    </div>
+                    <!-- 天賦列表 -->
+                    <div id="talent-list-section">
+                        <h3>📊 天賦列表</h3>
+                        <div id="talent-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 5.6: 挑戰島介面 -->
+            <div id="tab-tower" class="tab-content">
+                <div id="tower-container">
+                    <div id="tower-header">
+                        <h2>🗼 極限對戰塔</h2>
+                        <div id="tower-floor-display"></div>
+                    </div>
+                    <!-- 加成資訊 -->
+                    <div id="tower-bonus-section">
+                        <h3>📊 通關加成</h3>
+                        <div id="tower-bonus-info"></div>
+                    </div>
+                    <!-- 規則說明 -->
+                    <div id="tower-rules-section">
+                        <h3>📋 挑戰規則</h3>
+                        <div id="tower-rules-content"></div>
+                    </div>
+                    <!-- 當前層資訊 -->
+                    <div id="tower-floor-section">
+                        <h3 id="tower-floor-title">第 1 層</h3>
+                        <div id="tower-enemies-grid"></div>
+                    </div>
+                    <!-- 操作按鈕 -->
+                    <div id="tower-actions">
+                        <button id="btn-tower-start" class="tower-action-btn start">⚔️ 開始挑戰</button>
+                        <button id="btn-tower-flee" class="tower-action-btn flee" style="display:none;">🏃 撤退</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 6: 圖鑑介面 -->
+            <div id="tab-pokedex" class="tab-content">
+                <div id="pokedex-container">
+                    <h2>📖 寶可夢圖鑑 <span id="pokedex-caught">已捕獲: 0</span></h2>
+                    <div id="pokedex-region-filters">
+                        <button class="region-filter-btn active" data-region="all">全部</button>
+                        <button class="region-filter-btn" data-region="kanto">關都地區</button>
+                        <button class="region-filter-btn" data-region="johto">城都地區</button>
+                        <button class="region-filter-btn" data-region="hoenn">豐緣地區</button>
+                        <button class="region-filter-btn" data-region="sinnoh">神奧地區</button>
+                        <button class="region-filter-btn" data-region="unova">合眾地區</button>
+                        <button class="region-filter-btn" data-region="kalos">卡洛斯地區</button>
+                        <button class="region-filter-btn" data-region="alola">阿羅拉地區</button>
+                        <button class="region-filter-btn" data-region="galar">伽勒爾地區</button>
+                        <button class="region-filter-btn" data-region="paldea">帕底亞地區</button>
+                        <button class="region-filter-btn" data-region="mega">Mega地區</button>
+                    </div>
+                    <div id="pokedex-filters">
+                        <button class="filter-btn active" data-filter="all">全部</button>
+                        <button class="filter-btn" data-filter="caught">已捕獲</button>
+                        <button class="filter-btn" data-filter="uncaught">未捕獲</button>
+                        <button class="filter-btn shiny-filter" data-filter="shiny">✨ 閃光</button>
+                        <button class="filter-btn not-shiny-filter" data-filter="not_shiny">未閃光</button>
+                        <button class="filter-btn" data-filter="skill_ready">⚡ 可升級技能</button>
+                    </div>
+                    <div id="pokedex-sub-filters">
+                        <label for="pokedex-type-filter">屬性</label>
+                        <select id="pokedex-type-filter"><option value="all">全部屬性</option></select>
+                    </div>
+                    <div id="pokedex-search-bar">
+                        <input type="text" id="pokedex-search-input" placeholder="🔍 搜尋寶可夢名稱或編號..." autocomplete="off">
+                    </div>
+                    <div id="pokedex-grid"></div>
+                </div>
+            </div>
+
+            <!-- Tab 6: 設定介面 -->
+            <div id="tab-settings" class="tab-content">
+                <div id="settings-container">
+                    <div class="settings-heading"><div><span class="settings-eyebrow">CONTROL CENTER</span><h2>設定</h2><p>自訂遊戲選項、管理存檔及查看冒險紀錄。</p></div><span class="settings-heading-icon" aria-hidden="true">⚙</span></div>
+                    <div class="settings-section settings-options">
+                        <h3>🎮 遊戲選項</h3>
+                        <label class="setting-toggle">
+                            <input type="checkbox" id="setting-auto-switch">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-label">自動更換最優寶可夢出戰</span>
+                        </label>
+                        <p class="setting-desc">遭遇新敵人時，依屬性、技能、攻擊速度與一擊必殺策略選擇出戰寶可夢。</p>
+                        <div id="oneshot-strategy-group" class="setting-radio-group" style="display:none;">
+                            <p class="setting-radio-label">⚡ 一擊必殺時優先選擇：</p>
+                            <label class="setting-radio"><input type="radio" name="oneshot-strategy" value="fastest"> 🏃 速度最快（清怪更快）</label>
+                            <label class="setting-radio"><input type="radio" name="oneshot-strategy" value="lowest_level"> 📈 等級最低（練級優先）</label>
+                            <label class="setting-radio"><input type="radio" name="oneshot-strategy" value="no_change"> 🔒 不改變（保持當前出戰）</label>
+                        </div>
+                        <label class="setting-toggle" id="setting-auto-route-wrapper">
+                            <input type="checkbox" id="setting-auto-route">
+                            <span class="toggle-slider"></span>
+                            <span class="toggle-label">🔄 自動切換地圖</span>
+                        </label>
+                        <p class="setting-desc" id="setting-auto-route-desc">平時依完成條件與地圖順序切換。技能重置後按隊伍等級及戰力估算地圖難度，可跨等練級，但不會越過第一個未完成地圖。</p>
+                        <div id="route-switch-condition-group" class="setting-radio-group" style="display:none;">
+                            <p class="setting-radio-label">📋 切換條件：</p>
+                            <label class="setting-radio"><input type="radio" name="route-switch-condition" value="6v_shiny"> ✨ 全部6V且閃光後切換</label>
+                            <label class="setting-radio"><input type="radio" name="route-switch-condition" value="6v_only"> 🎯 全部6V後切換</label>
+                        </div>
+                        <button id="btn-resume-skill-recovery" class="setting-btn" type="button" hidden>📍 依隊伍等級恢復技能重練</button>
+                    </div>
+                    <div class="settings-section gameplay-entry">
+                        <h3>📘 遊戲玩法說明</h3>
+                        <p class="gameplay-entry-desc">點選檢視名詞解釋、戰鬥屬性來源與經驗分配規則</p>
+                        <button id="btn-gameplay-help" class="setting-btn">檢視玩法說明</button>
+                        <p class="setting-desc">📄 <a href="https://github.com/QQ7-Git/pokeidle" target="_blank" rel="noopener noreferrer">正式版原始碼與授權</a></p>
+                    </div>
+                    <div class="settings-section settings-save">
+                        <h3>💾 存檔管理</h3>
+                        <div class="settings-buttons">
+                            <button id="btn-save" class="setting-btn">手動儲存</button>
+                            <button id="btn-export" class="setting-btn">匯出存檔</button>
+                            <button id="btn-import" class="setting-btn">匯入存檔</button>
+                            <button id="btn-delete" class="setting-btn danger">刪除存檔</button>
+                        </div>
+                        <div class="settings-buttons">
+                            <button id="btn-export-file" class="setting-btn">📁 匯出存檔檔案</button>
+                            <button id="btn-import-file" class="setting-btn">📂 載入存檔檔案</button>
+                            <input type="file" id="import-file-input" accept=".json,.txt" style="display:none">
+                        </div>
+                        <textarea id="save-data-area" placeholder="存檔資料將顯示在這裡..." rows="6"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div id="tab-stats" class="tab-content">
+                <div id="stats-container">
+                    <div class="stats-heading"><span class="stats-eyebrow">TRAINER RECORD</span><h2>遊戲統計</h2><p>查看你的戰鬥成果和圖鑑收集進度。</p></div>
+                    <section class="stats-section"><h3>⚔️ 冒險總覽</h3><div id="stats-overview" class="stats-overview"></div></section>
+                    <section class="stats-section"><h3>📖 圖鑑進度</h3><div id="stats-dex-summary" class="stats-overview"></div><div id="stats-regions" class="stats-regions"></div></section>
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部導航 -->
+        <nav id="tab-nav">
+            <button class="tab-btn active" data-tab="tab-battle"><span class="tab-icon">⚔️</span><span class="tab-label">戰鬥</span></button>
+            <button class="tab-btn" data-tab="tab-pokedex"><span class="tab-icon">📖</span><span class="tab-label">圖鑑</span></button>
+            <button class="tab-btn" data-tab="tab-map"><span class="tab-icon">🗺️</span><span class="tab-label">地圖</span></button>
+            <button class="tab-btn badge-tab-btn" data-tab="tab-badge"><span class="tab-icon">🏅</span><span class="tab-label">徽章</span></button>
+            <button class="tab-btn berry-tab-btn" data-tab="tab-berry"><span class="tab-icon">🌱</span><span class="tab-label">樹果</span></button>
+            <button class="tab-btn skill-tab-btn" data-tab="tab-skill"><span class="tab-icon">⚡</span><span class="tab-label">技能</span></button>
+            <button class="tab-btn talent-tab-btn" data-tab="tab-talent"><span class="tab-icon">🌟</span><span class="tab-label">天賦</span></button>
+            <button class="tab-btn tower-tab-btn" data-tab="tab-tower"><span class="tab-icon">🗼</span><span class="tab-label">極限對戰塔</span></button>
+            <button class="tab-btn" data-tab="tab-stats"><span class="tab-icon">📊</span><span class="tab-label">統計</span></button>
+            <button class="tab-btn" data-tab="tab-settings"><span class="tab-icon">⚙️</span><span class="tab-label">設定</span></button>
+        </nav>
+    </div>
+
+
+    <dialog id="team-replace-dialog" aria-labelledby="team-replace-title">
+        <div class="stat-dialog-header"><h2 id="team-replace-title">選擇替換隊員</h2><form method="dialog"><button class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
+        <p id="team-replace-description" class="recommend-desc"></p>
+        <fieldset id="team-replace-appearance" class="team-appearance" hidden>
+            <legend><span>加入後的外觀</span></legend>
+            <label><input type="radio" name="team-replace-appearance" value="shiny" checked><span class="team-appearance-card"><img data-appearance-preview="shiny" alt=""><span><strong>✨ 閃光</strong><small>閃光配色</small></span></span></label>
+            <label><input type="radio" name="team-replace-appearance" value="normal"><span class="team-appearance-card"><img data-appearance-preview="normal" alt=""><span><strong>普通</strong><small>原始配色</small></span></span></label>
+        </fieldset>
+        <div class="team-replace-section-title">選擇要替換的隊員</div>
+        <div id="team-replace-list" class="team-replace-list"></div>
+        <div class="recommend-actions"><form method="dialog"><button class="recommend-cancel">取消</button></form></div>
+    </dialog>
+    <dialog id="team-appearance-dialog" aria-labelledby="team-appearance-title">
+        <div class="stat-dialog-header"><h2 id="team-appearance-title">選擇隊員外觀</h2><form method="dialog"><button class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
+        <p id="team-appearance-description" class="recommend-desc"></p>
+        <div class="recommend-actions"><form method="dialog"><button class="recommend-cancel">取消</button></form><button type="button" id="team-appearance-normal">普通</button><button type="button" id="team-appearance-shiny">✨ 閃光</button></div>
+    </dialog>
+    <dialog id="team-recommend-options" aria-labelledby="team-recommend-options-title">
+        <div class="stat-dialog-header"><h2 id="team-recommend-options-title">選擇推薦模式</h2><form method="dialog"><button class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
+        <form id="team-recommend-options-form" class="recommend-options-form">
+            <label class="recommend-option"><input type="radio" name="recommend-mode" value="current" checked><span><strong>現在最強</strong><small>使用目前等級，推薦現在適合刷圖的隊伍。</small></span></label>
+            <label class="recommend-option"><input type="radio" name="recommend-mode" value="future"><span><strong>未來潛力</strong><small>自動以所有已捕獲寶可夢的最高等級乘以 5 模擬，不超過等級上限；實際等級不變。</small></span></label>
+            <p class="recommend-desc">未來模式沿用目前的技能、個體值、樹果及閃光狀態，不預測升級時間或進化。推薦隊員現在可能尚不足以應付道路。</p>
+            <div class="recommend-actions"><button type="button" id="cancel-recommend-options" class="recommend-cancel">取消</button><button type="submit">計算推薦</button></div>
+        </form>
+    </dialog>
+    <dialog id="team-recommend-dialog" aria-labelledby="team-recommend-title">
+        <div class="stat-dialog-header"><h2 id="team-recommend-title">推薦隊伍</h2><form method="dialog"><button class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
+        <p class="recommend-desc">依目前道路的出現權重及等級範圍比較隊伍。數值為保守估算，不含敵方傷害及會心一擊；確認後才會更換。</p>
+        <div id="team-recommend-content"></div>
+        <div class="recommend-actions"><form method="dialog"><button class="recommend-cancel">取消</button></form><button id="confirm-recommend-team" type="button">套用隊伍</button></div>
+    </dialog>
+    <dialog id="team-detail-dialog" aria-labelledby="team-detail-title">
+        <div class="stat-dialog-header"><h2 id="team-detail-title">寶可夢詳細數值</h2><form method="dialog"><button type="submit" class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
+        <div class="team-detail-tabs" role="tablist" aria-label="寶可夢資訊">
+            <button id="team-detail-tab" type="button" role="tab" aria-selected="true" aria-controls="team-detail-content" class="active">詳細數值</button>
+            <button id="team-sources-tab" type="button" role="tab" aria-selected="false" aria-controls="team-sources-content">屬性來源</button>
+            <span class="team-detail-live">● 即時更新</span>
+        </div>
+        <div id="team-detail-content"></div>
+        <div id="team-sources-content" hidden></div>
+    </dialog>
+    <dialog id="stat-sources-dialog" aria-labelledby="stat-sources-dialog-title">
+        <div class="stat-dialog-header"><h2 id="stat-sources-dialog-title">出戰寶可夢計算公式</h2><form method="dialog"><button type="submit" class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
+        <div id="stat-sources-content" class="formula-content">
+            <p>以下公式適用於所有寶可夢；⌊ ⌋ 表示向下取整。</p>
+            <section><h3>1. 有效種族值</h3><div class="formula-code">⌊ min(種族值 + 樹果加成, 255) × 閃光倍率 ⌋</div><p>閃光倍率為 1.2，非閃光為 1；敵方不享有樹果加成。</p></section>
+            <section><h3>2. 自身屬性</h3><div class="formula-code">生命值 = ⌊ (2 × 有效種族值 + IV) × 等級 ÷ 100 ⌋ + 等級 + 10<br>其他屬性 = ⌊ (2 × 有效種族值 + IV) × 等級 ÷ 100 ⌋ + 5</div><p>攻擊力 = 物攻 + 特攻；防禦力 = 物防 + 特防。速度直接使用自身速度。</p></section>
+            <section><h3>3. 出戰屬性</h3><div class="formula-code">基礎合計 = ⌊ 自身屬性 + 隊友屬性總和 × 20% + 非隊伍圖鑑屬性總和 × 1% ⌋<br>寶石後 = ⌊ 基礎合計 × (1 + 寶石加成) ⌋<br>最終屬性 = ⌊ 寶石後 × (1 + 天賦加成) ⌋</div><p>圖鑑加成只計入已捕獲、且不在隊伍中的寶可夢；隊友加成不包含出戰者。</p></section>
+            <section><h3>4. 天賦全屬性加成</h3><div class="formula-code">加成百分比 = 已捕獲寶可夢技能等級總和 × 天賦等級 × 0.0002%</div></section>
+            <section><h3>5. 戰力</h3><div class="formula-code">技能倍率 = 最高技能威力 ÷ 50（沒有技能時為 1）<br>有效攻擊 = ⌊ 自身攻擊力 × 技能倍率 ⌋<br>戰力 = ⌊ (自身生命值 + 有效攻擊 + 自身防禦力 + 自身速度) ÷ 10 ⌋</div><p>戰力使用自身屬性，不計入隊友、圖鑑、寶石與天賦加成。</p></section>
+            <section><h3>6. 潛力</h3><div class="formula-code">單項成長值 = 2 × 有效種族值 + IV<br>屬性分數 = ⌊ (六項成長值總和 − 400) ÷ (1554 − 400) × 91 ⌋<br>潛力 = max(0, 經驗組分數 + 屬性分數)%</div><p>經驗組分數：快速 9、普通 6、中慢 3、慢速 0。潛力最低為 0%，可以超過 100%。</p></section>
+        </div>
+    </dialog>
+
+    <script src="js/lzstring.min.js"></script>
+    <script src="js/pokemon-data.js"></script>
+    <script src="js/pokemon-heights.js"></script>
+    <script src="js/pokemon-shapes.js"></script>
+    <script src="js/sprite-bounds.js"></script>
+    <script src="js/sprite-animation-bounds.js"></script>
+    <script src="js/sprite-square-bounds.js"></script>
+    <script src="js/route-data.js"></script>
+    <script src="js/game-config.js"></script>
+    <script src="js/game-core.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
