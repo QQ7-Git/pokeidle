@@ -62,9 +62,9 @@ index.html          遊戲頁面與介面結構
 css/                樣式與主題
 js/game-core.js     戰鬥、存檔與遊戲系統
 js/ui.js            畫面渲染與玩家互動
-js/*-data.js        寶可夢與道路資料
+js/*-data.js        遊戲與道路資料
 js/game-config.js   遊戲設定
-sprites/            寶可夢圖片
+sprites/            遊戲圖片
 docs/               文件素材
 ```
 
