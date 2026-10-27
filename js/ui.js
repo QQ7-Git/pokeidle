@@ -2613,6 +2613,23 @@ class GameUI {
         document.body.appendChild(overlay);
     }
 
+    showDisclaimerDialog() {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay tutorial-overlay disclaimer-overlay';
+        overlay.innerHTML = `
+            <div class="modal tutorial-modal">
+                <div class="tutorial-icon">📌</div>
+                <h3>免責聲明</h3>
+                <div class="tutorial-body">
+                    <div class="tutorial-item"><span>本遊戲為非官方同人作品，與寶可夢相關權利人無關；寶可夢名稱、角色與相關素材的權利屬於各自權利人。</span></div>
+                    <div class="tutorial-item"><span><strong>原始專案與授權：</strong>本遊戲修改自 <a href="https://github.com/Jinwind1/pokemon-idle" target="_blank" rel="noopener noreferrer">jinwind 的原始專案</a>，依 <a href="https://github.com/QQ7-Git/pokeidle/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0</a> 授權發布。<a href="https://github.com/QQ7-Git/pokeidle" target="_blank" rel="noopener noreferrer">查看修改版原始碼</a>。</span></div>
+                </div>
+                <div class="modal-buttons"><button type="button" class="confirm-btn tutorial-start-btn">確認</button></div>
+            </div>`;
+        overlay.querySelector('.tutorial-start-btn').addEventListener('click', () => overlay.remove());
+        document.body.appendChild(overlay);
+    }
+
     showTutorialDialog(onClose) {
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay tutorial-overlay';

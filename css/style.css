@@ -2067,7 +2067,7 @@ body {
 .offline-report-row:last-child { border: 0; }
 .offline-report-row span { color: var(--text-secondary); }
 .offline-report-row strong { text-align: right; overflow-wrap: anywhere; }
-.offline-report-footer { display: flex; justify-content: flex-start; margin-top: 8px; }
+.offline-report-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
 .offline-report-close { margin: 0; padding: 6px 20px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-card); color: var(--accent-light); cursor: pointer; }
 .offline-report-close:hover { background: var(--bg-card-hover); border-color: var(--accent); }
 @media (max-width: 600px) {

@@ -39,11 +39,13 @@ window.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 新手引導（只彈一次）
+    // 首次顯示指引與聲明，之後每次進入顯示聲明。
     if (!localStorage.getItem('pokemon_idle_tutorial_done')) {
         gameUI.showTutorialDialog(() => {
             localStorage.setItem('pokemon_idle_tutorial_done', '1');
         });
+    } else {
+        gameUI.showDisclaimerDialog();
     }
 
     // 開始戰鬥
