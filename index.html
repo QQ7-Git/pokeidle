@@ -82,13 +82,14 @@
                 <div id="info-panel">
                     <div id="panel-team" class="panel-content active">
                         <div id="team-list"></div>
+                        <div id="team-encounter-rates" class="team-encounter-rates"></div>
                     </div>
                 </div>
             </div>
 
             <!-- Tab 2: 地圖介面 -->
             <div id="tab-map" class="tab-content">
-                <div class="map-heading"><span class="map-eyebrow">WORLD EXPLORATION</span><h2>探索地圖</h2><p>選擇地區與道路，探索不同的寶可夢。</p></div>
+                <div class="map-heading"><div><span class="map-eyebrow">WORLD EXPLORATION</span><h2>探索地圖</h2><p>選擇地區與道路，探索不同的寶可夢。</p></div><button type="button" id="btn-region-rewards" class="map-rewards-button">🏅 地區解鎖與獎勵</button></div>
                 <div id="map-container">
                     <div id="region-panel">
                         <h2>🗺️ 選擇地區</h2>
@@ -172,7 +173,7 @@
                     </div>
                     <!-- 揹包 -->
                     <div id="berry-bag-section">
-                        <h3>🎒 樹果揹包</h3>
+                        <h3>🎒 樹果背包</h3>
                         <div id="berry-bag-grid"></div>
                     </div>
                     <!-- 種植選擇 -->
@@ -373,6 +374,11 @@
     </div>
 
 
+    <dialog id="region-rewards-dialog" aria-labelledby="region-rewards-title">
+        <div class="stat-dialog-header"><h2 id="region-rewards-title">🏅 地區解鎖與獎勵</h2><form method="dialog"><button type="submit" class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
+        <p class="region-rewards-intro">完成各地區圖鑑即可取得對應獎勵。</p>
+        <div id="region-rewards-list"></div>
+    </dialog>
     <dialog id="team-replace-dialog" aria-labelledby="team-replace-title">
         <div class="stat-dialog-header"><h2 id="team-replace-title">選擇替換隊員</h2><form method="dialog"><button class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
         <p id="team-replace-description" class="recommend-desc"></p>

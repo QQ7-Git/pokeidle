@@ -27,7 +27,7 @@ window.addEventListener('DOMContentLoaded', () => {
     gameUI.renderTeam();
 
     // 離線結算：頁面載入時如果距離上次儲存超過2秒，自動執行離線戰鬥
-    if (loaded && game.gameState && game.gameState.lastSave) {
+    if (loaded && game.gameState && game.gameState.lastSave && game.gameState.currentRoute !== 'free_hunting') {
         const elapsed = Date.now() - game.gameState.lastSave;
         if (elapsed > 2000) {
             const offlineBonusValue = game.getBadgeEffectValue('offline_time_bonus');

@@ -132,6 +132,10 @@ class GameCore {
         let elapsed = now - this._hiddenAt;
         this._hiddenAt = null;
 
+        // 對戰塔使用即時戰鬥，不套用一般野外離線模擬。
+        if (this._towerMode) return;
+
+
         // 如果後臺時間超過2秒，進行離線戰鬥結算
         if (elapsed > 2000) {
             // 離線時間上限：擁有離線時間徽章時48小時，否則24小時
@@ -649,7 +653,7 @@ class GameCore {
             settings: {},
             // 樹果系統
             berryPlots: [],         // 種植槽 [{ berryId, plantedAt }]  成熟判定: Date.now() - plantedAt >= BERRY_GROW_TIME
-            berryBag: {},           // 樹果揹包 { berryId: count }
+            berryBag: {},           // 樹果背包 { berryId: count }
             berryFed: {},           // 寶可夢已餵食記錄 { pokemonId: { berryId: count } }
             // 天賦系統
             talents: {},            // { talentId: level, gemAttrChoice: attrId }
@@ -817,12 +821,31 @@ class GameCore {
         return pokemon;
     }
 
+    // 野外每次遭遇的閃光及單項個體值為 31 機率（不含挑戰塔）。
+    getWildEncounterRates() {
+        let shiny = 1 / 4096;
+        shiny *= 1 + (this.getBadgeEffectValue('shiny_bonus') || 0);
+        shiny *= 1 + (this.getGemBonuses().shiny_rate || 0) / 100;
+        shiny *= 1 + this.getTalentValue('shiny_bonus') / 100;
+        shiny *= 1 + this.getTowerBonus() / 100;
+        const factor = this.gameState?.currentRoute === 'free_hunting' && !this._towerMode ? 0.7 : 1;
+        return { shiny: Math.min(1, shiny) * factor, iv31: factor / 32 };
+    }
+
+    reduceHuntingIVs(ivs) {
+        for (const stat of Object.keys(ivs)) {
+            if (ivs[stat] === 31 && Math.random() >= 0.7) ivs[stat] = Math.floor(Math.random() * 31);
+        }
+        return ivs;
+    }
+
     // 建立野生寶可夢（用於戰鬥）
     createWildPokemon(pokemonId, level) {
         const baseData = POKEMON_DATA[pokemonId];
         if (!baseData) return null;
 
         const ivs = this.generateWildIVs();
+        if (this.gameState?.currentRoute === 'free_hunting' && !this._towerMode) this.reduceHuntingIVs(ivs);
 
         // 閃光判定：基礎 1/4096 機率，閃光徽章加成後翻倍
         let shinyRate = 1 / 4096;
@@ -845,7 +868,7 @@ class GameCore {
         if (towerShinyBonus > 0) {
             shinyRate *= (1 + towerShinyBonus / 100);
         }
-        const isShiny = Math.random() < shinyRate;
+        const isShiny = Math.random() < Math.min(1, shinyRate) * (this.gameState?.currentRoute === 'free_hunting' && !this._towerMode ? 0.7 : 1);
 
         const pokemon = {
             uid: this.generateUID(),
@@ -903,7 +926,9 @@ class GameCore {
 
         // 樹果加成（每個樹果+5對應種族值，不含閃光上限255，閃光在封頂後再乘）
         // 只有己方寶可夢才享受樹果加成，野生/敵方怪物不計算
-        const berryBonuses = pokemon.isWild ? {} : this.getBerryBonuses(pokemon.id);
+        const berryBonuses = pokemon.isTowerEnemy
+            ? Object.fromEntries(Object.entries(baseRaw).map(([stat, value]) => [stat, Math.max(0, BERRY_STAT_CAP - value)]))
+            : pokemon.isWild ? {} : this.getBerryBonuses(pokemon.id);
 
         const base = {
             hp: Math.floor(Math.min(BERRY_STAT_CAP, baseRaw.hp + (berryBonuses.hp || 0)) * shinyBonus),
@@ -1062,18 +1087,19 @@ class GameCore {
             }
         }
 
-        // 圖鑑中已捕獲但不在隊伍中的寶可夢加成 (1%)
+        // 圖鑑加成：對戰塔內依樓層逐步恢復，一般戰鬥維持 1%。
         let pokedexBonus = { hp: 0, attack: 0, defense: 0, speed: 0 };
+        const pokedexRate = 0.01 * (this._towerMode ? this.getTowerBonusFactors().pokedex : 1);
         const teamSet = new Set(team.map(id => String(id)));
         for (const dexId in this.gameState.pokedex) {
             if (this.gameState.pokedex[dexId] === 'caught' && !teamSet.has(dexId)) {
                 const dexPokemon = this.createPokemon(parseInt(dexId), true);
                 if (dexPokemon) {
                     const s = this.calculateStats(dexPokemon);
-                    pokedexBonus.hp += s.hp * 0.01;
-                    pokedexBonus.attack += s.attack * 0.01;
-                    pokedexBonus.defense += s.defense * 0.01;
-                    pokedexBonus.speed += s.speed * 0.01;
+                    pokedexBonus.hp += s.hp * pokedexRate;
+                    pokedexBonus.attack += s.attack * pokedexRate;
+                    pokedexBonus.defense += s.defense * pokedexRate;
+                    pokedexBonus.speed += s.speed * pokedexRate;
                 }
             }
         }
@@ -1084,14 +1110,14 @@ class GameCore {
         let finalSpeed = Math.floor(baseStats.speed + teamBonus.speed + pokedexBonus.speed);
 
         // 寶石屬性百分比加成
-        const gemBonuses = this.getGemBonuses();
+        const gemBonuses = this.getBattleGemBonuses();
         if (gemBonuses.hp_bonus > 0) finalHp = Math.floor(finalHp * (1 + gemBonuses.hp_bonus / 100));
         if (gemBonuses.atk_bonus > 0) finalAttack = Math.floor(finalAttack * (1 + gemBonuses.atk_bonus / 100));
         if (gemBonuses.def_bonus > 0) finalDefense = Math.floor(finalDefense * (1 + gemBonuses.def_bonus / 100));
         if (gemBonuses.speed_bonus > 0) finalSpeed = Math.floor(finalSpeed * (1 + gemBonuses.speed_bonus / 100));
 
         // 天賦：寶可夢全屬性增加（技能等級之和 × 天賦等級 × 0.02%）
-        const talentStatBonus = this.getTalentStatBonusPercent();
+        const talentStatBonus = this.getTalentStatBonusPercent() * (this._towerMode ? this.getTowerBonusFactors().talent : 1);
         if (talentStatBonus > 0) {
             finalHp = Math.floor(finalHp * (1 + talentStatBonus / 100));
             finalAttack = Math.floor(finalAttack * (1 + talentStatBonus / 100));
@@ -1141,16 +1167,17 @@ class GameCore {
         }
         // 圖鑑加成
         const pokedexBonus = { hp: 0, attack: 0, defense: 0, speed: 0 };
+        const pokedexRate = 0.01 * (this._towerMode ? this.getTowerBonusFactors().pokedex : 1);
         const teamSet = new Set(this.gameState.team.map(id => String(id)));
         for (const dexId in this.gameState.pokedex) {
             if (this.gameState.pokedex[dexId] === 'caught' && !teamSet.has(dexId)) {
                 const dexPokemon = this.createPokemon(parseInt(dexId), true);
                 if (dexPokemon) {
                     const s = this.calculateStats(dexPokemon);
-                    pokedexBonus.hp += s.hp * 0.01;
-                    pokedexBonus.attack += s.attack * 0.01;
-                    pokedexBonus.defense += s.defense * 0.01;
-                    pokedexBonus.speed += s.speed * 0.01;
+                    pokedexBonus.hp += s.hp * pokedexRate;
+                    pokedexBonus.attack += s.attack * pokedexRate;
+                    pokedexBonus.defense += s.defense * pokedexRate;
+                    pokedexBonus.speed += s.speed * pokedexRate;
                 }
             }
         }
@@ -1160,7 +1187,7 @@ class GameCore {
         const pokedexStat = {};
 
         // 寶石加成
-        const gemBonuses = this.getGemBonuses();
+        const gemBonuses = this.getBattleGemBonuses();
         const gemStat = {};
 
         // 天賦加成
@@ -1211,6 +1238,22 @@ class GameCore {
         result.name = bestSkill.name;
         result.type = bestSkill.type;
         return result;
+    }
+
+    _getTowerEnemySkill(pokemonId, targetTypes) {
+        const types = POKEMON_DATA[pokemonId]?.types || [];
+        let best = null;
+        let bestScore = -1;
+        for (const type of types) {
+            const skill = SKILL_DATA[type]?.find(entry => entry.level === MAX_SKILL_LEVEL);
+            if (!skill) continue;
+            const score = skill.power * getBestTypeEffectiveness([type], targetTypes).multiplier;
+            if (score > bestScore) {
+                best = { ...skill, type };
+                bestScore = score;
+            }
+        }
+        return best;
     }
 
     // 閃光雙向傳播：將閃光狀態同步到整條進化鏈（基礎型 ↔ 進化型）
@@ -1436,12 +1479,13 @@ class GameCore {
     // ===================== 離線最佳化版：野生寶可夢生成 =====================
     // #7 接受預計算的閃光率和權重降低值，避免每次呼叫 getBadgeEffectValue/getGemBonuses/getTalentValue/getTowerBonus
     _generateWildPokemonOffline(route, cachedShinyRate, cachedWeightReduceValue) {
+        if (route?.id === 'free_hunting') route = this.getHuntingRoute();
         if (!route || !route.pokemon || route.pokemon.length === 0) return null;
 
         // 已完成寶可夢出現權重降低
         const weights = route.pokemon.map(p => {
             let w = p.weight;
-            if (cachedWeightReduceValue !== null) {
+            if (route.id !== 'free_hunting' && cachedWeightReduceValue !== null) {
                 const caught = this.gameState.pokedex[p.id] === 'caught';
                 if (caught) {
                     const storedData = this.getStoredData(p.id);
@@ -1477,14 +1521,15 @@ class GameCore {
         let level = Math.floor(Math.random() * (maxLevel - minLevel + 1)) + minLevel;
 
         // 天賦：野生怪物等級提升（離線模式不含挑戰塔，直接應用）
-        level = this.getMonsterLevelBoost(level);
+        if (route.id !== 'free_hunting') level = this.getMonsterLevelBoost(level);
 
         // 內聯建立野生寶可夢，使用快取的閃光率
         const baseData = POKEMON_DATA[selected.id];
         if (!baseData) return null;
 
         const ivs = this.generateWildIVs();
-        const isShiny = Math.random() < cachedShinyRate;
+        if (route.id === 'free_hunting') this.reduceHuntingIVs(ivs);
+        const isShiny = Math.random() < Math.min(1, cachedShinyRate) * (route.id === 'free_hunting' ? 0.7 : 1);
 
         const pokemon = {
             uid: this.generateUID(),
@@ -1620,7 +1665,7 @@ class GameCore {
         // 會心一擊判定
         let critRate = 0.05; // 預設 ~5%
         if (isPlayer) {
-            const bonuses = this.getGemBonuses();
+            const bonuses = this.getBattleGemBonuses();
             critRate += bonuses.crit_rate / 100;
         }
         let criticalHit = false;
@@ -1628,7 +1673,7 @@ class GameCore {
             // 天賦：會心一擊傷害增加（基礎1.5倍 + 天賦加成）
             let critMultiplier = 1.5;
             if (isPlayer) {
-                const talentCritBonus = this.getTalentValue('crit_damage_bonus');
+                const talentCritBonus = this.getTalentValue('crit_damage_bonus') * (this._towerMode ? this.getTowerBonusFactors().talent : 1);
                 if (talentCritBonus > 0) {
                     critMultiplier += talentCritBonus / 100;
                 }
@@ -1906,7 +1951,7 @@ class GameCore {
             this.currentBattle.enemyTimer = 0;
 
             // 閃避判定（寶石加成，上限75%）
-            const gemBonuses = this.getGemBonuses();
+            const gemBonuses = this.getBattleGemBonuses();
             const dodgeRate = Math.min(75, gemBonuses.dodge_rate) / 100;
             if (dodgeRate > 0 && Math.random() < dodgeRate) {
                 if (this.onBattleEvent) {
@@ -1917,13 +1962,15 @@ class GameCore {
                 const wildTypes = POKEMON_DATA[this.currentBattle.wild.id]?.types || [];
                 const activePokemonId = this.gameState.team[this.gameState.activePokemonIndex];
                 const playerTypes = POKEMON_DATA[activePokemonId]?.types || [];
+                const towerSkill = this._towerMode ? this._getTowerEnemySkill(this.currentBattle.wild.id, playerTypes) : null;
                 const result = this.calculateDamage(
                     this.currentBattle.wild.level,
                     this.currentBattle.wildStats.attack,
                     this.currentBattle.playerStats.defense,
-                    wildTypes,
+                    towerSkill ? [towerSkill.type] : wildTypes,
                     playerTypes,
-                    false // not player
+                    false, // not player
+                    towerSkill?.power || 0
                 );
                 this.currentBattle.playerCurrentHp -= result.damage;
 
@@ -1933,6 +1980,7 @@ class GameCore {
                         critical: result.criticalHit,
                         typeEffectiveness: result.typeEffectiveness,
                         effectivenessText: result.effectivenessText,
+                        skillName: towerSkill?.name || '',
                         hp: this.currentBattle.playerCurrentHp,
                         maxHp: this.currentBattle.playerMaxHp,
                     });
@@ -2370,7 +2418,7 @@ class GameCore {
     getRouteEncounterWeights(route, weightReduceValue = this.getBadgeEffectValue('completed_weight_reduce')) {
         return route.pokemon.map(p => {
             let w = p.weight;
-            if (weightReduceValue !== null) {
+            if (route.id !== 'free_hunting' && weightReduceValue !== null) {
                 const caught = this.gameState.pokedex[p.id] === 'caught';
                 if (caught) {
                     const storedData = this.getStoredData(p.id);
@@ -2412,7 +2460,7 @@ class GameCore {
         let level = Math.floor(Math.random() * (maxLevel - minLevel + 1)) + minLevel;
 
         // 天賦：野生怪物等級提升（挑戰塔除外）
-        if (!this._towerMode) {
+        if (!this._towerMode && route.id !== 'free_hunting') {
             level = this.getMonsterLevelBoost(level);
         }
 
@@ -2547,7 +2595,13 @@ class GameCore {
     }
 
     setActivePokemon(index) {
+        if (this._towerMode && this._towerFaintedIds?.has(this.gameState.team[index])) return false;
         if (index >= 0 && index < this.gameState.team.length) {
+            const oldPokemonId = this.gameState.team[this.gameState.activePokemonIndex];
+            if (this._towerMode && this.currentBattle && this._towerHpById) {
+                if (this.currentBattle.wildCurrentHp <= 0) return false;
+                this._towerHpById.set(oldPokemonId, Math.max(0, this.currentBattle.playerCurrentHp));
+            }
             this.gameState.activePokemonIndex = index;
 
             if (this.currentBattle) {
@@ -2566,7 +2620,13 @@ class GameCore {
                     this.currentBattle.playerStats = newPlayerStats;
                     this.currentBattle.playerMaxHp = newPlayerStats.hp;
                     // 繼承血量百分比：新寶可夢的當前HP = 新最大HP × 舊血量百分比
-                    this.currentBattle.playerCurrentHp = Math.max(1, Math.floor(newPlayerStats.hp * oldHpPercent));
+                    if (this._towerMode && this._towerHpById) {
+                        const savedHp = this._towerHpById.get(this.gameState.team[index]);
+                        this.currentBattle.playerCurrentHp = savedHp == null ? newPlayerStats.hp : Math.min(newPlayerStats.hp, savedHp);
+                        this._towerHpById.set(this.gameState.team[index], this.currentBattle.playerCurrentHp);
+                    } else {
+                        this.currentBattle.playerCurrentHp = Math.max(1, Math.floor(newPlayerStats.hp * oldHpPercent));
+                    }
                     this.currentBattle.playerNextAttack = this.getAttackInterval(newPlayerStats.speed);
                     // 繼承攻擊進度：按百分比對映到新的攻擊間隔上
                     this.currentBattle.playerTimer = Math.floor(this.currentBattle.playerNextAttack * oldAttackProgress);
@@ -2588,6 +2648,7 @@ class GameCore {
     }
 
     addToTeamFromPokedex(pokemonId) {
+        if (this._towerMode) return false;
         if (this.gameState.team.length >= 6) {
             console.log('addToTeamFromPokedex: 隊伍已滿');
             return false;
@@ -2608,6 +2669,7 @@ class GameCore {
     }
 
     removeFromTeamByPokemonId(pokemonId) {
+        if (this._towerMode) return false;
         // 找到該寶可夢在隊伍中的索引（非出戰）
         const teamIndex = this.gameState.team.findIndex((id, idx) => 
             id === pokemonId && idx !== this.gameState.activePokemonIndex
@@ -2633,6 +2695,7 @@ class GameCore {
     }
 
     removeFromTeam(teamIndex) {
+        if (this._towerMode) return false;
         if (this.gameState.team.length <= 1) return false; // 至少保留一隻
         if (teamIndex === this.gameState.activePokemonIndex) return false; // 不能移除出戰寶可夢
 
@@ -2647,7 +2710,66 @@ class GameCore {
     }
 
     // ===================== 地圖 =====================
+    isHuntingUnlocked() {
+        return !!this.gameState?.pokedex && Array.from({ length: 48 }, (_, i) => i + 1026)
+            .every(id => this.gameState.pokedex[id] === 'caught');
+    }
+
+    // 傳說／幻之分類參考 PokeAPI pokemon_species；Mega 依原形態分類。
+    getHuntingCategory(id) {
+        const legendary = [144,145,146,150,151,243,244,245,249,250,251,377,378,379,380,381,382,383,384,385,386,480,481,482,483,484,485,486,487,488,489,490,491,492,493,494,638,639,640,641,642,643,644,645,646,647,648,649,716,717,718,719,720,721,772,773,785,786,787,788,789,790,791,792,800,801,802,807,808,809,888,889,890,891,892,893,894,895,896,897,898,905,1001,1002,1003,1004,1007,1008,1014,1015,1016,1017,1024,1025,1039,1040,1064,1065,1066,1073];
+        const pseudo = [147,148,149,246,247,248,371,372,373,374,375,376,443,444,445,633,634,635,704,705,706,782,783,784,885,886,887,996,997,998,1046,1062,1063,1068];
+        if (legendary.includes(id)) return 'legendary';
+        if (pseudo.includes(id) || (id >= 1026 && id <= 1073)) return 'pseudo';
+        return 'other';
+    }
+
+    isValidHuntingSelection(pokemon) {
+        if (!Array.isArray(pokemon) || pokemon.length !== 6 || new Set(pokemon).size !== 6 ||
+            !pokemon.every(id => Number.isInteger(id) && POKEMON_DATA[id] && this.getBasePokemonId(id) === id)) return false;
+        const count = { legendary: 0, pseudo: 0, other: 0 };
+        pokemon.forEach(id => count[this.getHuntingCategory(id)]++);
+        return count.legendary === 1 && count.pseudo === 2 && count.other === 3;
+    }
+
+    getHuntingWeights(pokemon) {
+        return pokemon.map(id => {
+            const category = this.getHuntingCategory(id);
+            return category === 'legendary' ? 0.05 : category === 'pseudo' ? 0.10 : 0.75 / 3;
+        });
+    }
+
+    getHuntingRoute() {
+        const config = this.gameState?.huntingGround;
+        if (!this.isHuntingUnlocked() || !config || !this.isValidHuntingSelection(config.pokemon)) return null;
+        const level = this.getHuntingLevel();
+        const weights = this.getHuntingWeights(config.pokemon);
+        return { id: 'free_hunting', name: '自由狩獵場', description: '自選六隻寶可夢',
+            levelRange: [level, level],
+            pokemon: config.pokemon.map((id, i) => ({ id, weight: weights[i], levelRange: [level, level] })) };
+    }
+
+    getHuntingLevel() {
+        return Math.min(MAX_POKEMON_LEVEL, Math.max(1, ...Object.values(this.gameState?.caughtPokemon || {}).map(p => Number.isFinite(p?.level) ? Math.floor(p.level) : 1)));
+    }
+
+    setHuntingGround(pokemon) {
+        if (this._offlineSimState || this._towerMode || !this.isHuntingUnlocked() ||
+            !this.isValidHuntingSelection(pokemon)) return false;
+        this.gameState.huntingGround = { pokemon: [...pokemon] };
+        return true;
+    }
+
+    repairHuntingLocation() {
+        if (this.gameState?.currentRoute !== 'free_hunting' || this.getHuntingRoute()) return;
+        this.gameState.currentRoute = 'kanto_route1';
+        this.gameState.currentRegion = 'kanto';
+        this.gameState.currentEnemy = null;
+        delete this.gameState.battleHp;
+    }
+
     getRoute(routeId) {
+        if (routeId === 'free_hunting') return this.getHuntingRoute();
         for (const regionKey in REGIONS) {
             const region = REGIONS[regionKey];
             for (const route of region.routes) {
@@ -2659,6 +2781,19 @@ class GameCore {
 
     changeRoute(routeId) {
         if (this._offlineSimState || this._towerMode) return false;
+        if (routeId === 'free_hunting') {
+            if (!this.getHuntingRoute()) return false;
+            this.stopBattle();
+            this.gameState.currentRegion = 'hunting';
+            this.gameState.currentRoute = routeId;
+            this.gameState.currentEnemy = null;
+            delete this.gameState.battleHp;
+            this.currentBattle = null;
+            this.resetRateTracker();
+            this.startBattle();
+            this.save();
+            return true;
+        }
         const regionKey = Object.keys(REGIONS).find(key => REGIONS[key].routes.some(route => route.id === routeId));
         if (!regionKey || !this.isRegionUnlocked(regionKey)) return false;
         if (this.gameState.currentRoute === routeId) return true;
@@ -2815,6 +2950,7 @@ class GameCore {
     }
 
     _applyPendingSkillRouteCheck() {
+        if (this.gameState?.currentRoute === 'free_hunting') return false;
         if (!this.gameState?.pendingSkillRouteCheck || this._towerMode || this._offlineSimState) return false;
         if (!this.gameState.settings?.autoRouteSwitch) return false;
         delete this.gameState.pendingSkillRouteCheck;
@@ -2867,6 +3003,7 @@ class GameCore {
 
     // 自動切換到下一個未完成的地圖（無需徽章，直接開放）
     tryAutoRouteSwitch() {
+        if (this.gameState?.currentRoute === 'free_hunting') return null;
         if (!this.gameState.settings?.autoRouteSwitch) return null;
         if (!this.gameState.currentRoute) return null;
 
@@ -3155,11 +3292,13 @@ class GameCore {
             if (parsed.tower.inBattle) {
                 // 重新整理頁面時如果正在挑戰中，重置為未挑戰狀態（不丟失層數進度）
                 parsed.tower.inBattle = false;
+                parsed.tower.currentEnemyIndex = 0;
             }
             // 確保activePokemonIndex在範圍內
             if (parsed.activePokemonIndex >= parsed.team.length) parsed.activePokemonIndex = 0;
 
             this.gameState = parsed;
+            this.repairHuntingLocation();
             // 遷移修復：舊版 generateUID 批次購買時產生重複uid
             this._migrateFixGemUids();
             this._reconcileCompletedBadges();
@@ -3267,6 +3406,14 @@ class GameCore {
             }
 
             this.gameState = data;
+            this._towerMode = false;
+            this._towerFaintedIds = null;
+            this._towerHpById = null;
+            if (this.gameState.tower?.inBattle) {
+                this.gameState.tower.inBattle = false;
+                this.gameState.tower.currentEnemyIndex = 0;
+            }
+            this.repairHuntingLocation();
             // 遷移修復：寶石重複uid（舊generateUID方案批次購買時碰撞）
             this._migrateFixGemUids();
             this._reconcileCompletedBadges();
@@ -3867,6 +4014,13 @@ class GameCore {
             reason,
         };
     }
+    getBattleGemBonuses() {
+        const bonuses = this.getGemBonuses();
+        if (!this._towerMode) return bonuses;
+        const factor = this.getTowerBonusFactors().gem;
+        return Object.fromEntries(Object.entries(bonuses).map(([id, value]) => [id, value * factor]));
+    }
+
     getGemBonuses() {
         const bonuses = {};
         for (const attr of GEM_ATTRIBUTES) {
@@ -3904,6 +4058,7 @@ class GameCore {
 
         for (let i = 0; i < this.gameState.team.length; i++) {
             const pokemonId = this.gameState.team[i];
+            if (this._towerMode && this._towerFaintedIds?.has(pokemonId)) continue;
             const pokemon = this.createPokemon(pokemonId, true);
             if (!pokemon) continue;
 
@@ -4007,6 +4162,7 @@ class GameCore {
 
     // 每滿 1000 級增加 1 級技能；等級與經驗重置。
     upgradeSkill(pokemonId) {
+        if (this._towerMode) return { success: false, message: '對戰塔挑戰期間無法升級技能' };
         if (!this.isSkillUnlocked()) return { success: false, message: '技能系統尚未解鎖' };
 
         const storedData = this.gameState.caughtPokemon[pokemonId];
@@ -4059,6 +4215,7 @@ class GameCore {
 
     // 一鍵升級所有可升級技能的寶可夢
     upgradeAllSkills() {
+        if (this._towerMode) return { success: false, message: '對戰塔挑戰期間無法升級技能' };
         if (!this.isSkillUnlocked()) return { success: false, message: '技能系統尚未解鎖' };
 
         const results = [];
@@ -4421,6 +4578,12 @@ class GameCore {
     }
 
     // ===================== 挑戰塔系統 =====================
+    getTowerBonusFactors(floor = this.gameState?.tower?.currentFloor || 1) {
+        const current = Number.isFinite(floor) ? Math.max(1, Math.min(TOWER_MAX_FLOOR, floor)) : 1;
+        const progress = (current - 1) / (TOWER_MAX_FLOOR - 1);
+        return { pokedex: 0.30 + 0.70 * progress, talent: 0.25 + 0.75 * progress, gem: 0.25 + 0.75 * progress };
+    }
+
     // 檢查挑戰塔是否解鎖（帕底亞地區通關）
     isTowerUnlocked() {
         return this.isRegionCompleted('paldea');
@@ -4490,8 +4653,10 @@ class GameCore {
             name: baseData.name,
             level: level,
             ivs: { hp: 31, atk: 31, def: 31, spAtk: 31, spDef: 31, speed: 31 },
-            isShiny: true, // 挑戰塔怪物全部閃光
-            isWild: true,  // 敵方不享受玩家樹果加成
+            isShiny: false,
+            isWild: true,
+            isTowerEnemy: true, // 挑戰塔專屬的滿樹果加成，不使用玩家資料
+            skillLevel: MAX_SKILL_LEVEL,
         };
     }
 
@@ -4514,6 +4679,8 @@ class GameCore {
         // 暫停主線戰鬥
         this.stopBattle();
         this._towerMode = true;
+        this._towerFaintedIds = new Set();
+        this._towerHpById = new Map(this.gameState.team.map(id => [id, null]));
         this._towerPlayerHpPercent = 1; // 進入新層時滿血
         tower.inBattle = true;
 
@@ -4524,8 +4691,11 @@ class GameCore {
     // 退出挑戰塔（恢復主線戰鬥）
     exitTower() {
         this._towerMode = false;
+        this._towerFaintedIds = null;
+        this._towerHpById = null;
         this._towerBattle = null;
         this.gameState.tower.inBattle = false;
+        this.gameState.tower.currentEnemyIndex = 0;
         this.save();
         // 恢復主線戰鬥
         this.startBattle();
@@ -4559,8 +4729,11 @@ class GameCore {
         const playerStats = this.calculateBattleStats(this.gameState.activePokemonIndex);
         if (!playerStats) return;
 
-        // 每個挑戰塔敵人開始戰鬥時回滿生命值。
-        const playerHp = playerStats.hp;
+        // 同一層內保留各隊員血量，首次出戰才滿血。
+        const activeId = this.gameState.team[this.gameState.activePokemonIndex];
+        const savedHp = this._towerHpById?.get(activeId);
+        const playerHp = savedHp == null ? playerStats.hp : Math.min(playerStats.hp, savedHp);
+        if (this._towerHpById) this._towerHpById.set(activeId, playerHp);
 
         this.currentBattle = {
             wild: enemy,
@@ -4589,6 +4762,7 @@ class GameCore {
         this.stopBattle();
         const battle = this.currentBattle;
         const tower = this.gameState.tower;
+        this._towerHpById?.set(this.gameState.team[this.gameState.activePokemonIndex], Math.max(0, battle.playerCurrentHp));
 
         tower.currentEnemyIndex++;
 
@@ -4624,6 +4798,8 @@ class GameCore {
             tower.currentEnemyIndex = 0;
             tower.inBattle = false;
             this._towerMode = false;
+            this._towerFaintedIds = null;
+            this._towerHpById = null;
             this._towerPlayerHpPercent = 1; // 新層滿血
 
             this.save();
@@ -4644,6 +4820,23 @@ class GameCore {
     onTowerPlayerFainted() {
         this.stopBattle();
 
+        this._towerFaintedIds ||= new Set();
+        const faintedId = this.gameState.team[this.gameState.activePokemonIndex];
+        this._towerFaintedIds.add(faintedId);
+        this._towerHpById?.set(faintedId, 0);
+        const available = this.gameState.team.findIndex(id => !this._towerFaintedIds.has(id));
+        if (available !== -1) {
+            const best = this.gameState.settings?.autoSwitchBest
+                ? this.getBestTeamMemberForEnemy(this.currentBattle.wild) : -1;
+            const nextIndex = best >= 0 ? best : available;
+            this.setActivePokemon(nextIndex);
+            if (this.onBattleEvent) this.onBattleEvent('towerPokemonSwitched', {
+                faintedId, nextId: this.gameState.team[nextIndex], remaining: this.gameState.team.length - this._towerFaintedIds.size,
+            });
+            this.startBattleLoop();
+            return;
+        }
+
         if (this.onBattleEvent) {
             this.onBattleEvent('towerPlayerFainted', {
                 floor: this.gameState.tower.currentFloor,
@@ -4653,6 +4846,8 @@ class GameCore {
 
         // 失敗後重置進度，重新挑戰從第一隻怪開始
         this._towerMode = false;
+        this._towerFaintedIds = null;
+        this._towerHpById = null;
         this._towerBattle = null;
         this._towerPlayerHpPercent = 1;
         this.gameState.tower.inBattle = false;

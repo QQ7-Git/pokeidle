@@ -29,7 +29,7 @@ const REGIONS = {
         id: 'kanto',
         name: '關都地區',
         nameEn: 'Kanto',
-        description: '初代寶可夢的故鄉，擁有豐富的地形和多樣的寶可夢。',
+        description: '初代寶可夢的故鄉，擁有豐富的地形和多樣的寶可夢。完成關都圖鑑可獲得徽章，解鎖戰鬥金幣掉落。',
         routes: [
             {
                 id: 'kanto_route1',
@@ -407,7 +407,7 @@ const REGIONS = {
         id: 'johto',
         name: '城都地區',
         nameEn: 'Johto',
-        description: '第二世代寶可夢的家園，充滿了傳說與神秘。需要集齊關都地區所有寶可夢才能前往。',
+        description: '第二世代寶可夢的家園，充滿了傳說與神秘。需要集齊關都地區所有寶可夢才能前往。完成城都圖鑑可獲得徽章，讓獲得的金幣變為 2 倍。',
         unlockCondition: { type: 'pokedex_complete', region: 'kanto', range: [1, 151] },
         routes: [
             {
@@ -740,7 +740,7 @@ const REGIONS = {
         id: 'hoenn',
         name: '豐緣地區',
         nameEn: 'Hoenn',
-        description: '第三世代寶可夢的故鄉，擁有廣闊的海洋和豐富的自然環境。需要集齊城都地區所有寶可夢才能前往。',
+        description: '第三世代寶可夢的故鄉，擁有廣闊的海洋和豐富的自然環境。需要集齊城都地區所有寶可夢才能前往。完成豐緣圖鑑可獲得徽章，讓獲得的經驗值提高 50%。',
         unlockCondition: { type: 'pokedex_complete', region: 'johto', range: [152, 251] },
         routes: [
             {
@@ -1093,7 +1093,7 @@ const REGIONS = {
         id: 'sinnoh',
         name: '神奧地區',
         nameEn: 'Sinnoh',
-        description: '第四世代寶可夢的家園，擁有雄偉的天冠山和神秘的時空傳說。需要集齊豐緣地區所有寶可夢才能前往。',
+        description: '第四世代寶可夢的家園，擁有雄偉的天冠山和神秘的時空傳說。需要集齊豐緣地區所有寶可夢才能前往。完成神奧圖鑑可獲得徽章，讓閃光出現機率變為 2 倍。',
         unlockCondition: { type: 'pokedex_complete', region: 'hoenn', range: [252, 386] },
         routes: [
             {
@@ -1458,7 +1458,7 @@ const REGIONS = {
         id: 'unova',
         name: '合眾地區',
         nameEn: 'Unova',
-        description: '第五世代寶可夢的故鄉，擁有繁華的都市與廣袤的自然。需要集齊神奧地區所有寶可夢才能前往。',
+        description: '第五世代寶可夢的故鄉，擁有繁華的都市與廣袤的自然。需要集齊神奧地區所有寶可夢才能前往。完成合眾圖鑑可獲得徽章，讓已達 6V 且閃光的寶可夢出現權重降低 90%。',
         unlockCondition: { type: 'pokedex_complete', region: 'sinnoh', range: [387, 493] },
         routes: [
             {
@@ -1826,7 +1826,7 @@ const REGIONS = {
         id: 'kalos',
         name: '卡洛斯地區',
         nameEn: 'Kalos',
-        description: '第六世代寶可夢的故鄉，以美麗的巴黎風格城市與Mega進化聞名。需要集齊合眾地區所有寶可夢才能前往。',
+        description: '第六世代寶可夢的故鄉，以美麗的巴黎風格城市與Mega進化聞名。需要集齊合眾地區所有寶可夢才能前往。完成卡洛斯圖鑑可獲得徽章，讓樹果成熟時間減半。',
         unlockCondition: { type: 'pokedex_complete', region: 'unova', range: [494, 649] },
         routes: [
             {
@@ -2183,7 +2183,7 @@ const REGIONS = {
         id: 'alola',
         name: '阿羅拉地區',
         nameEn: 'Alola',
-        description: '溫暖的南國群島，擁有獨特的地區形態寶可夢和守護神。',
+        description: '溫暖的南國群島，擁有獨特的地區形態寶可夢和守護神。完成阿羅拉圖鑑可獲得徽章，使生成寶石的屬性數值偏向較高值。',
         unlockCondition: { type: 'pokedex_complete', region: 'kalos', range: [650, 721] },
         routes: [
             {
@@ -2392,7 +2392,7 @@ const REGIONS = {
         id: 'galar',
         name: '伽勒爾地區',
         nameEn: 'Galar',
-        description: '工業發達的地區，極巨化現象讓寶可夢變得巨大化。',
+        description: '工業發達的地區，極巨化現象讓寶可夢變得巨大化。完成伽勒爾圖鑑可獲得徽章，讓樹果收穫數量變為 2 倍。',
         unlockCondition: { type: 'pokedex_complete', region: 'alola', range: [722, 809] },
         routes: [
             {
@@ -2619,7 +2619,7 @@ const REGIONS = {
         id: 'paldea',
         name: '帕底亞地區',
         nameEn: 'Paldea',
-        description: '廣闊的伊比利亞風格地區，擁有太晶化現象和神秘的古來/未來寶可夢。',
+        description: '廣闊的伊比利亞風格地區，擁有太晶化現象和神秘的古來/未來寶可夢。完成帕底亞圖鑑可獲得徽章，將最大離線結算時間提高至 48 小時。',
         unlockCondition: { type: 'pokedex_complete', region: 'galar', range: [810, 905] },
         routes: [
             {
@@ -2862,7 +2862,7 @@ const REGIONS = {
         id: 'mega',
         name: 'Mega進化地區',
         nameEn: 'Mega Evolution',
-        description: '超越極限的Mega進化之地，經典Mega寶可夢聚集於此。需完成帕底亞圖鑑方可進入。',
+        description: '超越極限的Mega進化之地，經典Mega寶可夢聚集於此。需完成帕底亞圖鑑方可進入。完成 Mega 圖鑑可獲得徽章，使不在隊伍中的圖鑑寶可夢所獲經驗提高 50%。',
         unlockCondition: { type: 'pokedex_complete', region: 'paldea', range: [906, 1025] },
         routes: [
             {

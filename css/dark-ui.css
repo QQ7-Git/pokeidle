@@ -104,6 +104,50 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .team-stat-sources-btn, .stat-dialog-close { border: 1px solid var(--border); border-radius: 4px; background: var(--bg-card); color: var(--accent-light); cursor: pointer; }
 .team-stat-sources-btn { padding: 7px 9px; font-size: 11px; white-space: nowrap; }
 .team-stat-sources-btn:hover, .stat-dialog-close:hover { background: var(--bg-card-hover); border-color: var(--accent); }
+#panel-team.active { display: flex; flex-direction: column; }
+.team-encounter-rates { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: auto; padding: 8px 2px 2px; color: var(--text-secondary); font-size: 11px; }
+.hunting-form { display: flex; flex-direction: column; gap: 14px; cursor: default; padding: 20px; }
+.hunting-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.hunting-heading h3 { margin: 3px 0 5px; }
+.hunting-heading p, .hunting-help, .hunting-count, .hunting-error { margin: 0; color: var(--text-secondary); font-size: 13px; line-height: 1.6; }
+.hunting-eyebrow { color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .12em; }
+.hunting-level { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--accent-light); font-size: 12px; white-space: nowrap; }
+.hunting-notice { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--bg-primary); color: var(--text-secondary); font-size: 12px; }
+.hunting-inputs { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.hunting-slot { display: flex; flex-direction: column; gap: 7px; min-width: 0; padding: 11px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-primary); }
+.hunting-slot > span { color: var(--accent-light); font-size: 12px; font-weight: 700; }
+.hunting-slot-legendary > span { color: var(--warning); }
+.hunting-slot input { box-sizing: border-box; width: 100%; min-width: 0; padding: 8px; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; }
+.hunting-slot input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.hunting-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 6px; }
+.hunting-preview-row { display: flex; justify-content: space-between; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-size: 12px; }
+.hunting-preview-row strong { color: var(--accent-light); white-space: nowrap; }
+.hunting-error { color: var(--warning); }
+.hunting-error:empty, .hunting-preview:empty { display: none; }
+.hunting-submit { align-self: flex-start; padding: 9px 24px; border: 1px solid var(--accent); border-radius: 5px; background: var(--accent); color: var(--bg-primary); font-weight: 700; cursor: pointer; }
+.hunting-submit:hover { filter: brightness(1.12); }
+.hunting-slot-select { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 54px; padding: 5px 9px; text-align: left; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
+.hunting-slot-sprite { display: grid; place-items: center; flex: 0 0 42px; width: 42px; height: 42px; }
+.hunting-slot-sprite img { width: 42px; height: 42px; object-fit: contain; image-rendering: pixelated; }
+.hunting-slot-select:hover, .hunting-slot-select:focus-visible { border-color: var(--accent); outline: 1px solid var(--accent); }
+.hunting-picker { box-sizing: border-box; width: min(760px, calc(100vw - 24px)); max-width: 760px; max-height: min(85dvh, 800px); margin: auto; padding: 16px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--bg-secondary); box-shadow: 0 20px 80px rgba(0,0,0,.7); }
+.hunting-picker::backdrop { background: rgba(0,0,0,.75); }
+.hunting-picker-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.hunting-picker-heading h3 { margin: 0; }
+.hunting-picker-close { padding: 6px 10px; color: var(--text-primary); background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; }
+.hunting-picker-search { box-sizing: border-box; width: 100%; margin: 12px 0 4px; padding: 10px; color: var(--text-primary); background: var(--bg-primary); border: 1px solid var(--border); border-radius: 4px; }
+.hunting-picker-count { margin: 5px 0 10px; color: var(--text-secondary); font-size: 12px; }
+.hunting-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
+.hunting-picker-option { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 4px; min-width: 0; padding: 8px 4px; color: var(--text-primary); background: var(--bg-primary); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+.hunting-picker-option:hover, .hunting-picker-option:focus-visible, .hunting-picker-option.selected { border-color: var(--accent); background: var(--bg-card-hover); }
+.hunting-picker-option img { width: 64px; height: 64px; object-fit: contain; image-rendering: pixelated; }
+.hunting-picker-sprite { display: grid; place-items: center; width: 64px; height: 64px; }
+.hunting-picker-option span { overflow-wrap: anywhere; font-size: 12px; }
+.hunting-picker-option small { color: var(--text-secondary); }
+.hunting-picker-option .hunting-picker-6v { margin-left: 0; font-size: 11px; }
+.hunting-picker-markers { display: flex; justify-content: center; align-items: center; gap: 5px; min-height: 16px; }
+.tower-fainted { opacity: .6; }
+.tower-fainted-label { color: var(--warning); font-size: 11px; }
 #stat-sources-dialog, #team-detail-dialog, #team-recommend-dialog, #team-recommend-options, #team-replace-dialog, #team-appearance-dialog { width: min(600px, calc(100% - 24px)); max-height: min(80vh, 800px); margin: auto; padding: 18px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 20px 80px rgba(0,0,0,.7); }
 #stat-sources-dialog::backdrop, #team-detail-dialog::backdrop, #team-recommend-dialog::backdrop, #team-recommend-options::backdrop, #team-replace-dialog::backdrop, #team-appearance-dialog::backdrop { background: rgba(0,0,0,.75); }
 .stat-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -386,7 +430,27 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* 地圖探索 */
 #tab-map { gap: 14px; }
-.map-heading { flex: 0 0 auto; padding: 18px 20px; border: 1px solid var(--border); border-left: 3px solid var(--accent); background: linear-gradient(110deg, rgba(77,243,220,.1), var(--bg-secondary) 65%); }
+.map-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; flex: 0 0 auto; padding: 18px 20px; border: 1px solid var(--border); border-left: 3px solid var(--accent); background: linear-gradient(110deg, rgba(77,243,220,.1), var(--bg-secondary) 65%); }
+.map-rewards-button { padding: 9px 12px; border: 1px solid #31575a; border-radius: 4px; background: var(--bg-card); color: var(--text-primary); font-weight: 600; cursor: pointer; }
+.map-rewards-button:hover, .map-rewards-button:focus-visible { border-color: var(--accent); background: var(--bg-card-hover); }
+#region-rewards-dialog { width: min(900px, calc(100vw - 24px)); max-width: 900px; max-height: calc(100dvh - 24px); margin: auto; padding: 16px; overflow: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 20px 80px rgba(0,0,0,.7); }
+#region-rewards-dialog::backdrop { background: rgba(0,0,0,.75); }
+.region-rewards-intro { margin: 8px 0 12px; color: var(--text-secondary); font-size: 12px; }
+#region-rewards-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.region-reward-card { min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-card); }
+.region-reward-card h3 { margin: 0 0 6px; color: var(--text-primary); font-size: 15px; }
+.region-reward-card.obtained { border-color: var(--accent); border-left: 4px solid var(--accent); background: linear-gradient(110deg, rgba(77,243,220,.16), var(--bg-card)); }
+.region-reward-card.not-obtained { opacity: .72; background: var(--bg-primary); }
+.region-reward-obtained, .region-reward-pending { display: inline-block; margin-left: 5px; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+.region-reward-obtained { border: 1px solid var(--accent); background: rgba(77,243,220,.14); color: var(--accent-light); }
+.region-reward-pending { border: 1px solid var(--border); color: var(--text-secondary); }
+.region-reward-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; font-size: 12px; }
+.region-reward-row span { color: var(--text-secondary); }
+.region-reward-row strong, .region-reward-card summary { color: var(--accent-light); }
+.region-reward-card details { margin-top: 7px; font-size: 12px; }
+.region-reward-card summary { cursor: pointer; }
+.region-reward-card details p { margin-top: 6px; padding: 7px; border-left: 2px solid var(--accent); color: var(--text-secondary); background: var(--bg-primary); line-height: 1.5; }
+@media (max-width: 560px) { #region-rewards-list { grid-template-columns: 1fr; } }
 .map-eyebrow { color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .16em; }
 .map-heading h2 { margin-top: 5px; font-size: 22px; }
 .map-heading p { margin-top: 5px; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }

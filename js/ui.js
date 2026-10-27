@@ -41,6 +41,7 @@ class GameUI {
 
     // ===================== 事件監聽 =====================
     setupEventListeners() {
+        document.getElementById('btn-region-rewards').addEventListener('click', () => this.showRegionRewards());
         const statDialog = document.getElementById('stat-sources-dialog');
         document.getElementById('team-list').addEventListener('click', event => {
             if (event.target.closest('#btn-stat-sources')) statDialog.showModal();
@@ -398,7 +399,7 @@ class GameUI {
                 break;
             case 'playerFainted':
                 if (this.game._towerMode) {
-                    this.addBattleLog('我方寶可夢倒下了... 挑戰失敗', 'defeat');
+                    this.addBattleLog('我方寶可夢倒下了！', 'defeat');
                 } else {
                     this.addBattleLog('我方寶可夢倒下了... 正在回覆生命值', 'defeat');
                 }
@@ -490,6 +491,10 @@ class GameUI {
                     this.switchTab('tab-tower');
                     this.game.startBattle(); // 恢復主線
                 }, 500);
+                break;
+            case 'towerPokemonSwitched':
+                this.addBattleLog(`🗼 換上 ${POKEMON_DATA[data.nextId]?.name || '隊員'}，尚有 ${data.remaining} 隻可出戰。`, 'normal');
+                this.renderTeam();
                 break;
             case 'towerPlayerFainted':
                 this.addBattleLog(`💀 極限對戰塔第 ${data.floor} 層挑戰失敗...`, 'defeat');
@@ -649,7 +654,10 @@ class GameUI {
         const selected = this.game._getBestSkillForEnemy(playerId, types);
         const skills = this.game.getSkillForPokemon(playerId)?.skills || [];
         this._setBattleSkills('player-battle-skill', skills, selected.type);
-        this._setBattleSkills('enemy-battle-skill', [], '');
+        const towerSkill = this.game._towerMode && this.game.currentBattle?.wild?.isTowerEnemy
+            ? this.game._getTowerEnemySkill(enemyId, POKEMON_DATA[playerId]?.types || []) : null;
+        const enemySkills = towerSkill ? [towerSkill] : [];
+        this._setBattleSkills('enemy-battle-skill', enemySkills, towerSkill?.type || '');
     }
 
     _setBattleSkills(elementId, skills, selectedType) {
@@ -731,7 +739,8 @@ class GameUI {
         // 顯示傷害資訊
         const critText = data.critical ? '💥會心一擊！' : '';
         const effectText = data.effectivenessText || '';
-        this.addBattleLog(`${critText}受到 ${data.damage} 點傷害 ${effectText}`, 'attack');
+        const skillText = data.skillName ? `敵方使用【${data.skillName}】` : '';
+        this.addBattleLog(`${skillText}${critText}受到 ${data.damage} 點傷害 ${effectText}`, 'attack');
     }
 
     updateBattleHP(data) {
@@ -848,6 +857,8 @@ class GameUI {
             }
         }
         teamList.innerHTML = '<h3 class="team-list-heading"><span>⚔️ 我的隊伍 (' + this.game.gameState.team.length + '/6)</span><span class="team-heading-actions">' + rateHtml + '<button id="btn-recommend-team" class="team-stat-sources-btn" type="button">🧩 推薦隊伍</button><button id="btn-stat-sources" class="team-stat-sources-btn" type="button">📊 計算公式</button></span></h3>';
+        const encounterRates = this.game.getWildEncounterRates();
+        const formatChance = value => `${(value * 100).toFixed(6).replace(/\.?0+$/, '')}%`;
 
         // 出戰寶可夢排在最前面，其餘按等級從高到低排序
         const activeIdx = this.game.gameState.activePokemonIndex;
@@ -877,8 +888,9 @@ class GameUI {
                 `<span class="type-badge ${t}">${TYPE_NAMES[t]}</span>`
             ).join(' ');
 
+            const towerFainted = !!(this.game._towerMode && this.game._towerFaintedIds?.has(pokemonId));
             const slot = document.createElement('div');
-            slot.className = `team-slot${isActive ? ' active' : ''}`;
+            slot.className = `team-slot${isActive ? ' active' : ''}${towerFainted ? ' tower-fainted' : ''}`;
             slot.tabIndex = 0;
             slot.setAttribute('role', 'button');
             slot.setAttribute('aria-label', `查看 ${pokemon.name} 的詳細數值`);
@@ -914,12 +926,12 @@ class GameUI {
                 <div class="slot-main-row">
                     <div class="slot-sprite${showShiny ? ' shiny' : ''}"><img src="${slotSpriteUrl}" alt="${pokemon.name}" onerror="fallbackPokemonSprite(this, ${pokemonId}, ${!!showShiny}, '🔵')"></div>
                     <div class="slot-info">
-                        <div class="slot-name">${shinyNamePrefix}${pokemon.name} ${isActive ? '⚔️' : ''} <small style="color:var(--text-secondary);font-weight:normal">Lv.${pokemon.level}</small>${skillBadgeHtml}</div>
+                        <div class="slot-name">${shinyNamePrefix}${pokemon.name} ${isActive ? '⚔️' : ''} ${towerFainted ? '<span class="tower-fainted-label">已倒下</span>' : ''} <small style="color:var(--text-secondary);font-weight:normal">Lv.${pokemon.level}</small>${skillBadgeHtml}</div>
                         <div class="slot-type-nature">${typeBadges}</div>
                     </div>
                     <div class="team-slot-actions">
-                        ${!isActive ? `<button onclick="gameUI.setActive(${index})">出戰</button>` : ''}
-                        ${!isActive && this.game.gameState.team.length > 1 ? `<button class="remove-btn" onclick="gameUI.removeFromTeam(${index})">移除</button>` : ''}
+                        ${!isActive ? `<button onclick="gameUI.setActive(${index})" ${towerFainted ? 'disabled' : ''}>出戰</button>` : ''}
+                        ${!isActive && !this.game._towerMode && this.game.gameState.team.length > 1 ? `<button class="remove-btn" onclick="gameUI.removeFromTeam(${index})">移除</button>` : ''}
                     </div>
                 </div>
                 <div class="team-stats-wrapper">
@@ -968,6 +980,7 @@ class GameUI {
             });
             teamList.appendChild(slot);
         });
+        document.getElementById('team-encounter-rates').innerHTML = `<span>野外遭遇（不含對戰塔）</span><span>✨ 閃光 ${formatChance(encounterRates.shiny)}</span><span>🎯 單項 V ${formatChance(encounterRates.iv31)}</span>`;
     }
 
     previewTeamRecommendation(targetLevel) {
@@ -1097,7 +1110,10 @@ class GameUI {
     }
 
     setActive(index) {
-        this.game.setActivePokemon(index);
+        if (this.game.setActivePokemon(index) === false) {
+            this.showToast('⚠️ 倒下的隊員或戰鬥間隔中無法出戰');
+            return;
+        }
         this.renderTeam();
     }
 
@@ -1109,6 +1125,7 @@ class GameUI {
     }
 
     addToTeamFromPokedex(pokemonId) {
+        if (this.game._towerMode) { this.showToast('⚠️ 對戰塔挑戰期間無法更換隊伍'); return; }
         if (this.game.gameState.team.length >= 6) {
             this.showTeamReplacement(pokemonId);
             return;
@@ -1173,6 +1190,7 @@ class GameUI {
     }
 
     showTeamReplacement(pokemonId) {
+        if (this.game._towerMode) { this.showToast('⚠️ 對戰塔挑戰期間無法更換隊伍'); return; }
         const pokemon = POKEMON_DATA[pokemonId];
         if (!pokemon || this.game.gameState.pokedex[pokemonId] !== 'caught' || this.game.gameState.team.includes(pokemonId)) return;
         const originalTeam = this.game.gameState.team.slice();
@@ -1200,6 +1218,7 @@ class GameUI {
             button.className = 'team-replace-choice';
             button.innerHTML = `<img src="${url}" alt="" onerror="fallbackPokemonSprite(this, ${id}, ${!!shiny}, '🔵')"><span><strong>${data.name}</strong><small>Lv.${stored?.level || 1}${index === this.game.gameState.activePokemonIndex ? ' · 目前出戰' : ''}</small></span><span class="team-replace-action">替換</span>`;
             button.addEventListener('click', () => {
+                if (this.game._towerMode) { this.showToast('⚠️ 對戰塔挑戰期間無法更換隊伍'); return; }
                 if (this.game._offlineSimState || this.game.healTimer || this.game._nextBattleTimeout || (this.game.currentBattle && (this.game.currentBattle.playerCurrentHp <= 0 || this.game.currentBattle.wildCurrentHp <= 0))) {
                     this.showToast('⚠️ 請等目前結算或戰鬥間隔結束後再替換');
                     return;
@@ -1399,6 +1418,39 @@ class GameUI {
     }
 
     // ===================== 地圖介面 =====================
+    showRegionRewards() {
+        const summaries = {
+            kanto: { unlock: '徽章／金幣系統', reward: '' },
+            johto: { reward: '金幣 2 倍' },
+            hoenn: { unlock: '樹果系統', reward: '經驗 +50%' },
+            sinnoh: { reward: '閃耀護符：閃光機率 2 倍' },
+            unova: { unlock: '技能系統', reward: '已完成寶可夢較少出現' },
+            kalos: { reward: '樹果成熟時間減半' },
+            alola: { unlock: '天賦系統', reward: '寶石數值偏高' },
+            galar: { reward: '樹果收穫 2 倍' },
+            paldea: { unlock: '極限對戰塔', reward: '離線上限 48 小時' },
+            mega: { unlock: '自由狩獵場', reward: '未上陣圖鑑經驗 +50%' }
+        };
+        const list = document.getElementById('region-rewards-list');
+        list.replaceChildren();
+        for (const [key, region] of Object.entries(REGIONS)) {
+            const item = summaries[key];
+            if (!item) continue;
+            const badgeMarker = '可獲得徽章';
+            const marker = region.description.lastIndexOf(badgeMarker);
+            const effect = marker < 0 ? BADGE_DATA[key]?.effect || '' : region.description.slice(marker + badgeMarker.length).replace(/^[，、\s]+/, '');
+            const obtained = this.game.hasBadge(key);
+            const card = document.createElement('section');
+            card.className = `region-reward-card${obtained ? ' obtained' : ' not-obtained'}`;
+            card.innerHTML = `<h3>${region.name}${obtained ? ' <span class="region-reward-obtained">✓ 已獲得</span>' : ' <span class="region-reward-pending">尚未獲得</span>'}</h3>
+                ${item.unlock ? `<div class="region-reward-row"><span>解鎖</span><strong>${item.unlock}</strong></div>` : ''}
+                ${item.reward ? `<div class="region-reward-row"><span>獎勵</span><strong>${item.reward}</strong></div>` : ''}
+                <details><summary>查看詳情</summary><p>完成${region.name.replace('地區', '')}圖鑑後，${item.unlock ? `解鎖${item.unlock}；` : ''}${effect}</p></details>`;
+            list.appendChild(card);
+        }
+        document.getElementById('region-rewards-dialog').showModal();
+    }
+
     renderMap() {
         this._mapFollowingLocation = true;
         const regionList = document.getElementById('region-list');
@@ -1410,6 +1462,10 @@ class GameUI {
             const card = document.createElement('div');
             card.className = `region-card${this.game.gameState.currentRegion === key ? ' active' : ''}${!isUnlocked ? ' locked' : ''}`;
             card.dataset.regionId = key;
+            const badgeMarker = '可獲得徽章';
+            const badgeIndex = region.description.lastIndexOf(badgeMarker);
+            const effectStart = badgeIndex < 0 ? -1 : region.description.lastIndexOf('完成', badgeIndex);
+            const regionDescription = effectStart < 0 ? region.description : region.description.slice(0, effectStart);
 
             if (isUnlocked) {
                 // 檢查該地區所有寶可夢是否全部6V / 全部閃光
@@ -1433,7 +1489,7 @@ class GameUI {
 
                 card.innerHTML = `
                     <h3>${region.name}${regionBadges}</h3>
-                    <p>${region.description}</p>
+                    <p>${regionDescription}</p>
                     <p style="font-size:11px;color:var(--warning);margin-top:4px">${region.routes.length} 個地點</p>
                 `;
                 card.addEventListener('click', () => {
@@ -1444,7 +1500,7 @@ class GameUI {
                 const progress = this.game.getRegionUnlockProgress(key);
                 card.innerHTML = `
                     <h3>🔒 ${region.name}</h3>
-                    <p style="color:var(--text-secondary)">${region.description}</p>
+                    <p style="color:var(--text-secondary)">${regionDescription}</p>
                     <div class="unlock-progress">
                         <div class="unlock-progress-text">解鎖進度: ${progress.current}/${progress.total} (${progress.percent}%)</div>
                         <div class="unlock-progress-bar">
@@ -1455,6 +1511,13 @@ class GameUI {
             }
             regionList.appendChild(card);
         }
+
+        const huntingCard = document.createElement('div');
+        huntingCard.className = `region-card${this.game.gameState.currentRegion === 'hunting' ? ' active' : ''}${this.game.isHuntingUnlocked() ? '' : ' locked'}`;
+        huntingCard.dataset.regionId = 'hunting';
+        huntingCard.innerHTML = `<h3>${this.game.isHuntingUnlocked() ? '' : '🔒 '}自由狩獵場</h3><p>完成 Mega 圖鑑後開放，自選六隻寶可夢刷 6V 與閃光。單項 V 和閃光機率為一般野外的 70%。</p>`;
+        if (this.game.isHuntingUnlocked()) huntingCard.addEventListener('click', () => this.showRoutes('hunting'));
+        regionList.appendChild(huntingCard);
 
         // 預設顯示當前地區的道路
         this.showRoutes(this.game.gameState.currentRegion);
@@ -1467,6 +1530,10 @@ class GameUI {
     }
 
     showRoutes(regionId) {
+        if (regionId === 'hunting') {
+            if (this.game.isHuntingUnlocked()) this.showHuntingGround();
+            return;
+        }
         const region = REGIONS[regionId];
         if (!region) return;
         this._mapPreviewRegion = regionId;
@@ -1584,6 +1651,177 @@ class GameUI {
 
             routeList.appendChild(card);
         });
+    }
+
+    showHuntingGround() {
+        this._mapPreviewRegion = 'hunting';
+        document.querySelectorAll('.region-card').forEach(card => card.classList.toggle('active', card.dataset.regionId === 'hunting'));
+        document.getElementById('region-title').textContent = '📍 自由狩獵場';
+        const list = document.getElementById('route-list');
+        list.replaceChildren();
+        const form = document.createElement('form');
+        form.className = 'route-card hunting-form';
+        const config = this.game.gameState.huntingGround || {};
+        const level = this.game.getHuntingLevel();
+        form.innerHTML = `<div class="hunting-heading"><div><span class="hunting-eyebrow">CUSTOM HUNT</span><h3>🎯 自由狩獵場</h3><p>依類別選擇六隻不同的寶可夢，點擊欄位開啟選擇視窗。</p></div><span class="hunting-level">敵人 Lv.${level}</span></div><div class="hunting-notice"><span>✨ 單項 V 與閃光為一般野外 70%</span><span>⏸ 關閉網頁不產生狩獵收益</span></div><p class="hunting-help">一般進化鏈僅限最基礎形態；Mega 算準神，傳說／幻之 Mega 除外。固定出現率：傳說／幻之 5%、準神各 10%、其他各 25%；不套用完成寶可夢的徽章權重調整。</p><div class="hunting-inputs"></div><p class="hunting-count"></p><div class="hunting-preview"></div><p class="hunting-error" role="alert"></p><button class="hunting-submit" type="submit">開始狩獵</button><dialog class="hunting-picker" aria-labelledby="hunting-picker-title"><div class="hunting-picker-heading"><h3 id="hunting-picker-title"></h3><button type="button" class="hunting-picker-close" aria-label="關閉選擇視窗">✕</button></div><input type="search" class="hunting-picker-search" placeholder="搜尋名稱或編號" aria-label="搜尋寶可夢"><p class="hunting-picker-count"></p><div class="hunting-picker-grid"></div></dialog>`;
+        const inputs = form.querySelector('.hunting-inputs');
+        const categories = ['legendary', 'pseudo', 'pseudo', 'other', 'other', 'other'];
+        const labels = ['傳說／幻之', '準神 1', '準神 2', '其他 1', '其他 2', '其他 3'];
+        const buckets = { legendary: [], pseudo: [], other: [] };
+        for (const id of config.pokemon || []) {
+            if (POKEMON_DATA[id]) buckets[this.game.getHuntingCategory(id)].push(id);
+        }
+        const renderSlotSelection = (button, id) => {
+            button.replaceChildren();
+            if (!POKEMON_DATA[id]) {
+                button.textContent = '＋ 選擇寶可夢';
+                return;
+            }
+            const sprite = document.createElement('span');
+            sprite.className = 'hunting-slot-sprite';
+            const image = document.createElement('img');
+            image.src = getPokemonSpriteUrl(id);
+            image.alt = '';
+            image.onerror = () => fallbackPokemonSprite(image, id, false, '🔵');
+            sprite.appendChild(image);
+            const name = document.createElement('span');
+            name.textContent = `${id} ${POKEMON_DATA[id].name}`;
+            button.append(sprite, name);
+        };
+        for (let i = 0; i < 6; i++) {
+            const label = document.createElement('div');
+            label.className = `hunting-slot hunting-slot-${categories[i]}`;
+            const title = document.createElement('span');
+            title.textContent = `${String(i + 1).padStart(2, '0')}　${labels[i]}`;
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            const id = buckets[categories[i]].shift();
+            if (POKEMON_DATA[id]) input.value = `${id} ${POKEMON_DATA[id].name}`;
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'hunting-slot-select';
+            renderSlotSelection(button, id);
+            button.addEventListener('click', () => openPicker(i));
+            label.append(title, input, button);
+            inputs.appendChild(label);
+        }
+        const selectedIds = () => [...inputs.querySelectorAll('input')].map(input => {
+                const value = input.value.trim();
+                const numeric = /^(\d+)(?:\s|$)/.exec(value);
+                if (numeric) return Number(numeric[1]);
+                return Number(Object.keys(POKEMON_DATA).find(id => POKEMON_DATA[id].name === value));
+            });
+        const updatePreview = () => {
+            const ids = selectedIds();
+            const counts = { legendary: 0, pseudo: 0, other: 0 };
+            for (const id of ids) if (POKEMON_DATA[id]) counts[this.game.getHuntingCategory(id)]++;
+            form.querySelector('.hunting-count').textContent = `傳說／幻之 ${counts.legendary}/1 · 準神 ${counts.pseudo}/2 · 其他 ${counts.other}/3`;
+            const preview = form.querySelector('.hunting-preview');
+            preview.replaceChildren();
+            if (!this.game.isValidHuntingSelection(ids) || ids.some((id, i) => this.game.getHuntingCategory(id) !== categories[i])) return;
+            const weights = this.game.getHuntingWeights(ids);
+            const actual = this.game.getRouteEncounterWeights({ id: 'free_hunting', pokemon: ids.map((id, i) => ({ id, weight: weights[i] })) });
+            const total = actual.reduce((sum, value) => sum + value, 0);
+            for (let i = 0; i < ids.length; i++) {
+                const row = document.createElement('div');
+                const stored = this.game.getStoredData(ids[i]);
+                const is6V = stored?.ivs && Object.values(stored.ivs).length === 6 && Object.values(stored.ivs).every(value => value === 31);
+                row.className = 'hunting-preview-row';
+                const name = document.createElement('span');
+                name.textContent = `${POKEMON_DATA[ids[i]].name}${is6V ? ' · 6V' : ''}${this.game.gameState.shinyDex[ids[i]] ? ' ✨' : ''}`;
+                const chance = document.createElement('strong');
+                chance.textContent = `${(100 * actual[i] / total).toFixed(2)}%`;
+                row.append(name, chance);
+                preview.appendChild(row);
+            }
+        };
+        const dialog = form.querySelector('.hunting-picker');
+        const search = dialog.querySelector('.hunting-picker-search');
+        const grid = dialog.querySelector('.hunting-picker-grid');
+        let pickerIndex = 0;
+        const renderPicker = () => {
+            const query = search.value.trim().toLowerCase();
+            const ids = selectedIds();
+            const taken = new Set(ids.filter((id, i) => i !== pickerIndex && POKEMON_DATA[id]));
+            grid.replaceChildren();
+            for (const [key, data] of Object.entries(POKEMON_DATA)) {
+                const id = Number(key);
+                if (this.game.getBasePokemonId(id) !== id || this.game.getHuntingCategory(id) !== categories[pickerIndex] || taken.has(id)) continue;
+                if (query && !key.includes(query) && !data.name.toLowerCase().includes(query)) continue;
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `hunting-picker-option${ids[pickerIndex] === id ? ' selected' : ''}`;
+                button.dataset.pokemonId = id;
+                const image = document.createElement('img');
+                image.loading = 'lazy';
+                image.src = getPokemonSpriteUrl(id);
+                image.alt = '';
+                image.onerror = () => fallbackPokemonSprite(image, id, false, '🔵');
+                const sprite = document.createElement('span');
+                sprite.className = 'hunting-picker-sprite';
+                sprite.appendChild(image);
+                const name = document.createElement('span');
+                name.textContent = data.name;
+                const markers = document.createElement('span');
+                markers.className = 'hunting-picker-markers';
+                const ivs = this.game.getStoredData(id)?.ivs;
+                if (ivs && ['hp', 'atk', 'def', 'spAtk', 'spDef', 'speed'].every(stat => ivs[stat] === 31)) {
+                    const perfect = document.createElement('span');
+                    perfect.className = 'hunting-picker-6v route-badge-6v';
+                    perfect.textContent = '6V';
+                    perfect.setAttribute('aria-label', '已達成六項 V');
+                    markers.appendChild(perfect);
+                }
+                if (this.game.gameState.shinyDex?.[id]) {
+                    const shiny = document.createElement('span');
+                    shiny.className = 'hunting-picker-shiny';
+                    shiny.textContent = '✨';
+                    shiny.setAttribute('aria-label', '已擁有閃光');
+                    markers.appendChild(shiny);
+                }
+                const number = document.createElement('small');
+                number.textContent = `#${id}`;
+                button.append(sprite, name, markers, number);
+                button.addEventListener('click', () => {
+                    const slot = inputs.children[pickerIndex];
+                    slot.querySelector('input').value = `${id} ${data.name}`;
+                    renderSlotSelection(slot.querySelector('.hunting-slot-select'), id);
+                    updatePreview();
+                    dialog.close();
+                });
+                grid.appendChild(button);
+            }
+            dialog.querySelector('.hunting-picker-count').textContent = `可選擇 ${grid.children.length} 隻`;
+        };
+        const openPicker = index => {
+            pickerIndex = index;
+            dialog.querySelector('#hunting-picker-title').textContent = `選擇${labels[index]}`;
+            search.value = '';
+            renderPicker();
+            dialog.showModal();
+            search.focus();
+        };
+        search.addEventListener('input', renderPicker);
+        dialog.querySelector('.hunting-picker-close').addEventListener('click', () => dialog.close());
+        inputs.addEventListener('input', updatePreview);
+        updatePreview();
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            const ids = selectedIds();
+            if (ids.some((id, i) => this.game.getHuntingCategory(id) !== categories[i]) || !this.game.setHuntingGround(ids)) {
+                form.querySelector('.hunting-error').textContent = '請選擇不同的傳說／幻之 1 隻、準神 2 隻及其他 3 隻，進化鏈僅限基礎形態；挑戰或離線結算期間無法設定。';
+                return;
+            }
+            if (this.game.gameState.settings) this.game.gameState.settings.autoRouteSwitch = false;
+            if (!this.game.changeRoute('free_hunting')) return;
+            const checkbox = document.getElementById('setting-auto-route');
+            if (checkbox) checkbox.checked = false;
+            this._syncRouteSwitchConditionVisibility();
+            this.renderMap();
+            this.renderTeam();
+            this.showToast('📍 已進入自由狩獵場');
+        });
+        list.appendChild(form);
     }
 
     // ===================== 圖鑑介面 =====================
@@ -2270,7 +2508,7 @@ class GameUI {
         document.getElementById('stats-overview').innerHTML =
             card('總戰鬥次數', (stats.totalBattles || 0).toLocaleString()) +
             card('總獲得經驗', (stats.totalExp || 0).toLocaleString()) +
-            (this.game.isGoldUnlocked() ? card('當前金幣', (this.game.gameState.gold || 0).toLocaleString()) + card('累計金幣', (stats.totalGold || 0).toLocaleString()) : '');
+            (this.game.isGoldUnlocked() ? card('累計金幣', (stats.totalGold || 0).toLocaleString()) : '');
         document.getElementById('stats-dex-summary').innerHTML = card('圖鑑完成度', `${dexStats.caught} / ${dexStats.total}`) + card('閃光圖鑑', this.game.getShinyStats());
         const regions = [['kanto', '關都'], ['johto', '城都'], ['hoenn', '豐緣'], ['sinnoh', '神奧'], ['unova', '合眾'], ['kalos', '卡洛斯'], ['alola', '阿羅拉'], ['galar', '伽勒爾'], ['paldea', '帕底亞'], ['mega', 'Mega']];
         document.getElementById('stats-regions').innerHTML = regions.map(([id, name]) => {
@@ -2527,7 +2765,7 @@ class GameUI {
         this.game._importedLastSave = null;
         // 匯入後不能使用匯入前的戰鬥快取來結算新存檔。
         this.game.currentBattle = null;
-        if (importedLastSave) {
+        if (importedLastSave && this.game.gameState.currentRoute !== 'free_hunting') {
             const elapsed = Date.now() - importedLastSave;
             if (elapsed > 2000) {
                 const offlineBonusValue = this.game.getBadgeEffectValue('offline_time_bonus');
@@ -3869,9 +4107,12 @@ class GameUI {
         if (rulesContent) {
             rulesContent.innerHTML = `
                 <div class="tower-rules-list">
-                    <div class="tower-rule-item">🗼 極限對戰塔共 <strong>${TOWER_MAX_FLOOR} 層</strong>，每層 <strong>${TOWER_ENEMIES_PER_FLOOR} 只</strong>高種族值閃光寶可夢</div>
-                    <div class="tower-rule-item">⚔️ 需要連續擊敗6只才能通關，<strong>HP跨怪物繼承</strong>（每場戰鬥不回覆血量）</div>
-                    <div class="tower-rule-item">🔄 每層進入時<strong>HP回滿</strong>，失敗後從第一隻怪重新開始</div>
+                    <div class="tower-rule-item">🗼 極限對戰塔共 <strong>${TOWER_MAX_FLOOR} 層</strong>，每層 <strong>${TOWER_ENEMIES_PER_FLOOR} 隻</strong>高種族值寶可夢；敵人為 6V、技能滿級且樹果吃滿</div>
+                    <div class="tower-rule-item">⚖️ 我方圖鑑、天賦與寶石加成隨樓層逐步恢復：第 1 層分別為 30%、25%、25%，第 ${TOWER_MAX_FLOOR} 層為 100%</div>
+                    <div class="tower-rule-item">📖 本層生效比例：圖鑑 ${(this.game.getTowerBonusFactors().pokedex * 100).toFixed(1)}%・天賦 ${(this.game.getTowerBonusFactors().talent * 100).toFixed(1)}%・寶石 ${(this.game.getTowerBonusFactors().gem * 100).toFixed(1)}%</div>
+                    <div class="tower-rule-item">⚔️ 需要連續擊敗 6 隻才能通關；隊員各自保留 HP，換人與跨敵人不回復，全隊倒下才失敗</div>
+                    <div class="tower-rule-item">🔄 每次重新挑戰時隊伍 HP 回滿；失敗、撤退或重新整理後從該層第一隻敵人開始</div>
+                    <div class="tower-rule-item">🔒 挑戰期間可切換未倒下的隊員，但不能更換隊伍或升級技能</div>
                     <div class="tower-rule-item">📈 通關加成：<strong>歷史最高層數%</strong> 額外增加經驗/金幣/閃光機率</div>
                     <div class="tower-rule-item">⚠️ 怪物等級範圍：<strong>${this.game.getTowerFloorLevel(1).toLocaleString()}</strong> ~ <strong>${this.game.getTowerFloorLevel(TOWER_MAX_FLOOR).toLocaleString()}</strong></div>
                 </div>
