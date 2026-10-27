@@ -76,6 +76,10 @@ docs/               文件素材
 
 本專案基於 [GNU Affero General Public License v3.0](LICENSE)（AGPL-3.0）開源，完整授權條款見 `LICENSE`。提供本程式給其他人或讓他們透過網路使用修改版時，須依授權條款提供對應原始碼並保留相關聲明。
 
+### 第三方程式庫
+
+- [lz-string](https://github.com/pieroxy/lz-string) **1.5.0**：用於壓縮存檔資料及相容舊版存檔；作者為 pieroxy，採用 [MIT 授權](docs/lz-string-LICENSE.txt)。壓縮不等於加密。
+
 ## ⚠️ 免責聲明
 
 - 本遊戲由 AI 協助修改，僅供學習交流與技術展示，不用於商業用途。

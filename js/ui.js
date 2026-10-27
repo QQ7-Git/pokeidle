@@ -2626,6 +2626,10 @@ class GameUI {
                         <span><strong>免責聲明：</strong>本遊戲為非官方同人作品，與寶可夢相關權利人無關；寶可夢名稱、角色與相關素材的權利屬於各自權利人。</span>
                     </div>
                     <div class="tutorial-item">
+                        <span class="tutorial-emoji">📄</span>
+                        <span><strong>原始專案與授權：</strong>本遊戲修改自 <a href="https://github.com/Jinwind1/pokemon-idle" target="_blank" rel="noopener noreferrer">jinwind 的原始專案</a>，依 <a href="https://github.com/QQ7-Git/pokeidle/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">AGPL-3.0</a> 授權發布。<a href="https://github.com/QQ7-Git/pokeidle" target="_blank" rel="noopener noreferrer">查看修改版原始碼</a>。</span>
+                    </div>
+                    <div class="tutorial-item">
                         <span class="tutorial-emoji">🗺️</span>
                         <span>先到<strong>地圖</strong>選擇道路，隊伍會自動戰鬥並收集寶可夢。</span>
                     </div>
