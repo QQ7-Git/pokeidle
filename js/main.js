@@ -43,9 +43,10 @@ window.addEventListener('DOMContentLoaded', () => {
     if (!localStorage.getItem('pokemon_idle_tutorial_done')) {
         gameUI.showTutorialDialog(() => {
             localStorage.setItem('pokemon_idle_tutorial_done', '1');
+            gameUI.showAutoSettingsGuide();
         });
     } else {
-        gameUI.showDisclaimerDialog();
+        gameUI.showDisclaimerDialog(() => gameUI.showAutoSettingsGuide());
     }
 
     // 開始戰鬥

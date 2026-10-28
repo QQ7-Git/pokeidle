@@ -41,6 +41,12 @@ class GameUI {
 
     // ===================== 事件監聽 =====================
     setupEventListeners() {
+        document.getElementById('berry-ready-open').addEventListener('click', () => this.switchTab('tab-berry'));
+        document.getElementById('berry-ready-dismiss').addEventListener('click', () => {
+            const plots = this.game.gameState?.berryPlots || [];
+            this._dismissedRipePlots = new Set(plots.filter((_, i) => this.game.isBerryRipe(i)));
+            this.updateBerryReadyAlert();
+        });
         document.getElementById('btn-region-rewards').addEventListener('click', () => this.showRegionRewards());
         const statDialog = document.getElementById('stat-sources-dialog');
         document.getElementById('team-list').addEventListener('click', event => {
@@ -1039,6 +1045,34 @@ class GameUI {
         });
     }
 
+    getRecommendationEvolutionHint(pokemonId) {
+        const locations = [];
+        for (const region of Object.values(REGIONS)) {
+            for (const route of region.routes || []) {
+                if (route.pokemon?.some(entry => entry.id === pokemonId)) locations.push(`${region.name}・${route.name}`);
+            }
+        }
+
+        const steps = [];
+        let id = pokemonId;
+        const visited = new Set();
+        while (this.game.gameState.pokedex[id] !== 'caught' && !visited.has(id)) {
+            visited.add(id);
+            const parent = this.game._baseIdCache[id];
+            if (parent === undefined || !POKEMON_DATA[parent]) break;
+            const raw = POKEMON_DATA[parent].evolvesTo;
+            const evolution = (Array.isArray(raw) ? raw : raw ? [raw] : []).find(entry => entry.id === id);
+            if (!evolution) break;
+            const regionId = id <= 151 ? 'kanto' : id <= 251 ? 'johto' : id <= 386 ? 'hoenn' : id <= 493 ? 'sinnoh' : id <= 649 ? 'unova' : id <= 721 ? 'kalos' : id <= 809 ? 'alola' : id <= 905 ? 'galar' : id <= 1025 ? 'paldea' : 'mega';
+            const region = REGIONS[regionId];
+            const requirement = regionId === 'kanto' ? '' : `（需解鎖${region?.name || regionId}）`;
+            steps.unshift(`${POKEMON_DATA[parent].name} Lv.${evolution.level} → ${POKEMON_DATA[id].name}${requirement}`);
+            id = parent;
+        }
+        const direct = locations.length ? `野外可遇：${locations.join('、')}` : '沒有固定野外出現道路';
+        return `${direct}${steps.length ? `；進化：${steps.join('；')}` : ''}`;
+    }
+
     showTeamRecommendation(result, onConfirm) {
         const current = this.game.gameState.team;
         const proposed = result.team;
@@ -1052,7 +1086,7 @@ class GameUI {
             const shiny = this.game.gameState.pokedexDisplay[id] === 'shiny';
             const url = shiny ? getShinyPokemonSpriteUrl(id) : getPokemonSpriteUrl(id);
             const virtual = result.simulatedIds?.includes(id);
-            return `<div class="recommend-pokemon"><img src="${url}" alt="${data.name}" onerror="fallbackPokemonSprite(this, ${id}, ${!!shiny}, '🔵')"><div><span class="recommend-label">${label}${active ? (result.targetLevel !== null ? ' · 模擬出戰' : ' · 建議出戰') : ''}</span><strong>${data.name}</strong><small>${virtual ? '尚未擁有・模擬進化' : `實際 Lv.${stored?.level || 1}`}</small></div></div>`;
+            return `<div class="recommend-pokemon"><img src="${url}" alt="${data.name}" onerror="fallbackPokemonSprite(this, ${id}, ${!!shiny}, '🔵')"><div><span class="recommend-label">${label}${active ? (result.targetLevel !== null ? ' · 模擬出戰' : ' · 建議出戰') : ''}</span><strong>${data.name}</strong><small>${virtual ? `尚未擁有・模擬進化<br>${this.getRecommendationEvolutionHint(id)}` : `實際 Lv.${stored?.level || 1}`}</small></div></div>`;
         };
         const pairs = [];
         for (let i = 0; i < Math.max(removed.length, added.length); i++) {
@@ -2493,10 +2527,25 @@ class GameUI {
         });
     }
 
+    updateBerryReadyAlert() {
+        const alert = document.getElementById('berry-ready-alert');
+        const count = document.getElementById('berry-ready-count');
+        if (!alert || !count) return;
+        const plots = this.game.gameState?.berryPlots || [];
+        const ripe = plots.filter((_, i) => this.game.isBerryRipe(i));
+        const dismissed = this._dismissedRipePlots || new Set();
+        this._dismissedRipePlots = new Set(ripe.filter(plot => dismissed.has(plot)));
+        alert.hidden = !this.game.isBerryUnlocked() || !ripe.some(plot => !dismissed.has(plot));
+        const text = `有 ${ripe.length} 塊種植地可以採收`;
+        if (count.textContent !== text) count.textContent = text;
+    }
+
     // 樹果定時器重新整理（每秒更新倒計時）
     startBerryTimer() {
         if (this._berryTimer) clearInterval(this._berryTimer);
+        this.updateBerryReadyAlert();
         this._berryTimer = setInterval(() => {
+            this.updateBerryReadyAlert();
             if (this.currentTab === 'tab-berry' && this.game.isBerryUnlocked()) {
                 this._renderBerryPlots();
                 this._bindBerryPlotEvents(); // 僅重綁田地裡動態生成的採摘按鈕
@@ -2705,7 +2754,14 @@ class GameUI {
                 this.showToast(`⚡ 離線結算: 完成了 ${battles.toLocaleString()} 場戰鬥！`);
             }
             this.renderTeam();
-            if (report) this._showOfflineReport(report);
+            if (report) {
+                this._showOfflineReport(report);
+                if (this._autoSettingsGuidePending) {
+                    document.getElementById('offline-report-dialog')?.addEventListener('close', () => this.showAutoSettingsGuide(), { once: true });
+                }
+            } else if (this._autoSettingsGuidePending) {
+                this.showAutoSettingsGuide();
+            }
         }, 600);
     }
 
@@ -2869,7 +2925,52 @@ class GameUI {
         document.body.appendChild(overlay);
     }
 
-    showDisclaimerDialog() {
+    showAutoSettingsGuide() {
+        const settings = this.game.gameState?.settings || {};
+        if (settings.hideAutoSettingsGuide || (settings.autoSwitchBest && settings.autoRouteSwitch)) {
+            this._autoSettingsGuidePending = false;
+            return;
+        }
+        const report = document.getElementById('offline-report-dialog');
+        if (!this._offlineOverlay?.classList.contains('hidden') || report?.open) {
+            this._autoSettingsGuidePending = true;
+            if (report?.open) report.addEventListener('close', () => this.showAutoSettingsGuide(), { once: true });
+            return;
+        }
+        this._autoSettingsGuidePending = false;
+        if (document.getElementById('auto-settings-guide')) return;
+        const dialog = document.createElement('dialog');
+        dialog.id = 'auto-settings-guide';
+        dialog.setAttribute('aria-labelledby', 'auto-settings-guide-title');
+        dialog.innerHTML = `
+            <div class="auto-guide-content">
+                <section class="auto-guide-hero"><span class="auto-guide-eyebrow">WELCOME TO POKÉIDLE</span><h2 id="auto-settings-guide-title">設定自動戰鬥</h2><p>只要自動更換寶可夢或自動切換地圖有任一項未開啟，就會顯示這個提醒。</p></section>
+                <section class="auto-guide-card"><h3>🧭 設定方式</h3>
+                    <div class="auto-guide-step"><b>1</b><div><strong>開啟左側「⚙️ 設定」</strong><p>找到「🎮 遊戲選項」。</p></div></div>
+                    <div class="auto-guide-step"><b>2</b><div><strong>開啟兩個自動選項</strong><p>自動更換隊員與自動切換地圖。</p></div></div>
+                    <div class="auto-guide-step"><b>3</b><div><strong>選擇切圖條件</strong><p>依照你想完成的圖鑑目標選擇。</p></div></div>
+                    <p class="auto-guide-note">設定可隨時在「⚙️ 設定」中更改。此指引不會替你自動開啟選項；兩項都開啟後就不再提醒。</p>
+                </section>
+                <div class="auto-guide-actions"><button type="button" data-action="settings">前往設定 →</button><button type="button" data-action="later">稍後再說</button><button type="button" data-action="never">以後不提示</button></div>
+            </div>`;
+        dialog.addEventListener('cancel', event => event.preventDefault());
+        dialog.addEventListener('click', event => {
+            const action = event.target.closest('button[data-action]')?.dataset.action;
+            if (!action) return;
+            if (action === 'never') {
+                this.game.gameState.settings ||= {};
+                this.game.gameState.settings.hideAutoSettingsGuide = true;
+                this.game.save();
+            }
+            dialog.close();
+            dialog.remove();
+            if (action === 'settings') this.switchTab('tab-settings');
+        });
+        document.body.appendChild(dialog);
+        dialog.showModal();
+    }
+
+    showDisclaimerDialog(onClose) {
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay tutorial-overlay disclaimer-overlay';
         overlay.innerHTML = `
@@ -2882,7 +2983,10 @@ class GameUI {
                 </div>
                 <div class="modal-buttons"><button type="button" class="confirm-btn tutorial-start-btn">確認</button></div>
             </div>`;
-        overlay.querySelector('.tutorial-start-btn').addEventListener('click', () => overlay.remove());
+        overlay.querySelector('.tutorial-start-btn').addEventListener('click', () => {
+            overlay.remove();
+            if (onClose) onClose();
+        });
         document.body.appendChild(overlay);
     }
 

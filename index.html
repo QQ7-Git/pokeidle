@@ -12,7 +12,7 @@
         <!-- 頂部狀態列 -->
         <header id="header">
             <div class="brand-mark" aria-hidden="true"><span></span></div>
-            <div class="brand-copy"><h1 class="brand-eyebrow">PokéIdle</h1><span class="version-tag">v1.1.0</span></div>
+            <div class="brand-copy"><h1 class="brand-eyebrow">PokéIdle</h1><span class="version-tag">v1.1.1</span></div>
         </header>
 
         <!-- 主內容區 -->
@@ -82,6 +82,12 @@
                 <div id="info-panel">
                     <div id="panel-team" class="panel-content active">
                         <div id="team-list"></div>
+                        <div id="berry-ready-alert" class="berry-ready-alert" role="status" hidden>
+                            <span class="berry-ready-icon" aria-hidden="true">🌱</span>
+                            <div class="berry-ready-copy"><strong>樹果成熟了！</strong><small id="berry-ready-count"></small></div>
+                            <button id="berry-ready-open" type="button">前往樹果園</button>
+                            <button id="berry-ready-dismiss" class="berry-ready-dismiss" type="button" aria-label="關閉樹果成熟提示">×</button>
+                        </div>
                         <div id="team-encounter-rates" class="team-encounter-rates"></div>
                     </div>
                 </div>
@@ -335,6 +341,7 @@
                     </div>
                     <section class="settings-section update-history">
                         <h3>📋 更新紀錄</h3>
+                        <details open><summary>v1.1.1 — 設定與推薦提示</summary><ul><li>新增自動戰鬥設定指引，可選擇不再提示。</li><li>未來潛力推薦顯示模擬進化的野外道路與進化條件。</li><li>戰鬥頁新增樹果成熟提示。</li></ul></details>
                         <details><summary>v1.1.0 — 功能更新</summary><ul><li>新增自由狩獵場與極限對戰塔逐層加成。</li><li>改善隊伍血量、技能顯示及未來潛力推薦。</li><li>新增對戰塔重複挑戰與自動挑戰下一層。</li><li>調整徽章與寶石介面。</li></ul></details>
                         <details><summary>v1.0.0 — 公開版基準</summary><p>發布 PokéIdle 修改版本。</p></details>
                     </section>
