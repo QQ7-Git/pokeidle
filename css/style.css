@@ -651,6 +651,14 @@ body {
     animation: shiny-glow 2s ease-in-out infinite;
 }
 
+.pokemon-sprite.shiny.attacking {
+    animation: attack 0.3s ease, shiny-glow 2s ease-in-out infinite;
+}
+
+#enemy-side .pokemon-sprite.shiny.attacking {
+    animation: attack-left 0.3s ease, shiny-glow 2s ease-in-out infinite;
+}
+
 @keyframes shiny-glow {
     0%, 100% { filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5)); }
     50% { filter: drop-shadow(0 0 12px rgba(241, 196, 15, 0.8)) drop-shadow(0 0 24px rgba(241, 196, 15, 0.4)); }
