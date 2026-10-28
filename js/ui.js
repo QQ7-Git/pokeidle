@@ -66,7 +66,7 @@ class GameUI {
             const hasBeenSeen = !!state.pokedex[id];
             const isCaught = state.pokedex[id] === 'caught';
             const hasShiny = !!state.shinyDex[id];
-            const isShowingShiny = hasBeenSeen && isCaught && hasShiny && state.pokedexDisplay[id] === 'shiny';
+        const isShowingShiny = hasBeenSeen && isCaught && hasShiny;
             const image = card.querySelector('img');
             const spriteFrame = image.closest('.route-pokemon-hover-sprite');
             image.hidden = !hasBeenSeen;
