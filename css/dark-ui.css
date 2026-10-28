@@ -254,6 +254,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .deoxys-form-options .team-appearance-card { min-height: 72px; }
 .deoxys-form-options .team-appearance-card img { width: 54px; height: 54px; flex-basis: 54px; }
 .deoxys-shiny-option { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--text-primary); font-size: 13px; }
+.deoxys-shiny-option[hidden] { display: none !important; }
 .deoxys-shiny-option input { accent-color: var(--accent); }
 .team-appearance-card strong, .team-appearance-card small { display: block; }
 .team-appearance-card strong { color: var(--text-primary); font-size: 12px; }
