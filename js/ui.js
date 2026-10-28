@@ -1414,15 +1414,22 @@ class GameUI {
         const savedForm = this.game.gameState.pokemonForms?.[386];
         const currentForm = ['normal', 'attack', 'defense', 'speed'].includes(savedForm) ? savedForm : 'normal';
         options.querySelector(`input[value="${currentForm}"]`).checked = true;
-        const shinyOption = document.getElementById('deoxys-shiny-option');
-        const shinyCheckbox = document.getElementById('deoxys-shiny-checkbox');
-        shinyOption.hidden = !this.game.gameState.shinyDex?.[386];
-        shinyCheckbox.checked = shinyOption.hidden ? false : this.game.gameState.pokedexDisplay?.[386] === 'shiny';
+        const shinyToggle = document.getElementById('deoxys-shiny-toggle');
+        shinyToggle.hidden = !this.game.gameState.shinyDex?.[386];
+        let isShowingShiny = !shinyToggle.hidden && this.game.gameState.pokedexDisplay?.[386] === 'shiny';
         const updateDeoxysPreviews = () => options.querySelectorAll('[data-deoxys-preview]').forEach(image => {
-            image.src = getDeoxysSpriteUrl(image.dataset.deoxysPreview, !shinyOption.hidden && shinyCheckbox.checked);
+            image.src = getDeoxysSpriteUrl(image.dataset.deoxysPreview, isShowingShiny);
         });
         options.onchange = updateDeoxysPreviews;
-        shinyCheckbox.onchange = updateDeoxysPreviews;
+        shinyToggle.setAttribute('aria-pressed', String(isShowingShiny));
+        shinyToggle.title = isShowingShiny ? '目前顯示閃光外觀；按下切回普通' : '按下預覽閃光外觀';
+        shinyToggle.onclick = () => {
+            if (shinyToggle.hidden) return;
+            isShowingShiny = !isShowingShiny;
+            shinyToggle.setAttribute('aria-pressed', String(isShowingShiny));
+            shinyToggle.title = isShowingShiny ? '目前顯示閃光外觀；按下切回普通' : '按下預覽閃光外觀';
+            updateDeoxysPreviews();
+        };
         updateDeoxysPreviews();
         document.getElementById('deoxys-form-title').textContent = mode === 'add' ? '加入代歐奇希斯' : '設定代歐奇希斯';
         document.getElementById('deoxys-form-confirm').textContent = mode === 'add' ? '加入隊伍' : '套用設定';
@@ -1430,11 +1437,11 @@ class GameUI {
             const form = options.querySelector('input:checked')?.value || 'normal';
             this.game.gameState.pokemonForms = this.game.gameState.pokemonForms || {};
             this.game.gameState.pokemonForms[386] = form;
-            if (!shinyOption.hidden && shinyCheckbox.checked) this.game.gameState.pokedexDisplay[386] = 'shiny';
+            if (!shinyToggle.hidden && isShowingShiny) this.game.gameState.pokedexDisplay[386] = 'shiny';
             else delete this.game.gameState.pokedexDisplay[386];
             dialog.close();
             if (mode === 'add') {
-                this._addToTeamWithAppearance(386, shinyCheckbox.checked ? 'shiny' : 'normal');
+                this._addToTeamWithAppearance(386, isShowingShiny ? 'shiny' : 'normal');
             } else {
                 this.game.save();
                 this.renderTeam();

@@ -253,9 +253,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .deoxys-form-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .deoxys-form-options .team-appearance-card { min-height: 72px; }
 .deoxys-form-options .team-appearance-card img { width: 54px; height: 54px; flex-basis: 54px; }
-.deoxys-shiny-option { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--text-primary); font-size: 13px; }
-.deoxys-shiny-option[hidden] { display: none !important; }
-.deoxys-shiny-option input { accent-color: var(--accent); }
+.deoxys-shiny-toggle { min-height: 36px; margin-top: 12px; padding: 8px 14px; border: 1px solid #28736a; border-radius: 4px; background: #152d2c; color: var(--accent-light); font-size: 13px; font-weight: 700; cursor: pointer; transition: border-color .15s, background .15s, box-shadow .15s; }
+.deoxys-shiny-toggle:hover, .deoxys-shiny-toggle[aria-pressed="true"] { border-color: var(--accent-light); background: rgba(46, 173, 151, .16); }
+.deoxys-shiny-toggle:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 2px; }
+.deoxys-shiny-toggle[hidden] { display: none !important; }
 .team-appearance-card strong, .team-appearance-card small { display: block; }
 .team-appearance-card strong { color: var(--text-primary); font-size: 12px; }
 .team-appearance-card small { margin-top: 3px; color: var(--text-secondary); font-size: 10px; }
