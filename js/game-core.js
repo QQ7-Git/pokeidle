@@ -1778,7 +1778,6 @@ class GameCore {
 
     // ===================== 戰鬥系統 =====================
     startBattle() {
-        if (this._applyPendingSkillRouteCheck()) return;
         if (!this.gameState || !this.gameState.currentRoute) return;
         if (!this.gameState.team || this.gameState.team.length === 0) return;
         if (this.gameState.activePokemonIndex >= this.gameState.team.length) {
@@ -3052,227 +3051,27 @@ _isRouteCompleteByCondition(routeId) {
         return null;
     }
 
-    // 重練最多前往第一個未完成地圖；全數完成時以原地圖為目標。
-    _getSkillRecoveryGoal(originalRouteId) {
-        const firstIncomplete = this.findNextIncompleteRoute();
-        if (firstIncomplete) return firstIncomplete;
-        for (const regionKey in REGIONS) {
-            if (!this.isRegionUnlocked(regionKey)) continue;
-            const region = REGIONS[regionKey];
-            for (const route of region.routes) {
-                if (route.id === originalRouteId) {
-                    return { routeId: route.id, regionKey, routeName: route.name, regionName: region.name };
-                }
-            }
-        }
-        return null;
-    }
-
-    _isRouteAtOrBeforeRecoveryGoal(routeId, goalId) {
-        for (const regionKey in REGIONS) {
-            if (!this.isRegionUnlocked(regionKey)) continue;
-            for (const route of REGIONS[regionKey].routes) {
-                if (route.id === routeId) return true;
-                if (route.id === goalId) return false;
-            }
-        }
-        return false;
-    }
-
-    // 使用實際隊伍、圖鑑、寶石與天賦加成估算每種敵人的戰鬥表現。
-    _getSkillRecoveryBattleContext() {
-        const autoSwitch = !!this.gameState.settings?.autoSwitchBest;
-        const activeIndex = this.gameState.activePokemonIndex;
-        const team = this.gameState.team.map((id, index) => {
-            if (!autoSwitch && index !== activeIndex) return null;
-            const pokemon = this.createPokemon(id, true);
-            const stats = this.calculateBattleStats(index);
-            if (!pokemon || !stats) return null;
-            return { id, index, pokemon, stats, types: POKEMON_DATA[id]?.types || [] };
-        }).filter(Boolean);
-        return { team, autoSwitch, activeIndex, strategy: this.gameState.settings?.oneShotStrategy || 'fastest' };
-    }
-
-    // 以每種敵人的最高等級、6V 與閃光估算，保守考慮傷害波動與敵方會心。
-    _isSkillRecoveryRouteSuitable(route, context) {
-        if (!context.team.length) return false;
-        const ivs = { hp: 31, atk: 31, def: 31, spAtk: 31, spDef: 31, speed: 31 };
-        for (const entry of route.pokemon) {
-            if (!(entry.weight > 0) || !POKEMON_DATA[entry.id]) continue;
-            const enemy = { id: entry.id, level: this.getMonsterLevelBoost(entry.levelRange[1]), ivs, isShiny: true, isWild: true };
-            const enemyStats = this.calculateStats(enemy);
-            const enemyTypes = POKEMON_DATA[entry.id].types || [];
-            const candidates = context.team.map(member => {
-                const skill = this._getBestSkillForEnemy(member.id, enemyTypes);
-                const power = skill.power || 50;
-                const base = Math.floor(((2 * member.pokemon.level / 5 + 2) * power * member.stats.attack / enemyStats.defense) / 50) + 2;
-                const damage = Math.floor(base * getBestTypeEffectiveness(member.types, enemyTypes).multiplier);
-                const minDamage = Math.max(1, Math.floor(damage * 0.85));
-                const interval = this.getAttackInterval(member.stats.speed);
-                return { ...member, damage, minDamage, interval, canOneShot: minDamage >= enemyStats.hp, dps: damage / interval };
-            });
-            let chosen = candidates[0];
-            if (context.autoSwitch && candidates.length > 1) {
-                const active = candidates.find(candidate => candidate.index === context.activeIndex);
-                if (context.strategy === 'no_change' && active?.canOneShot) chosen = active;
-                else chosen = candidates.sort((a, b) => {
-                    if (a.canOneShot !== b.canOneShot) return a.canOneShot ? -1 : 1;
-                    if (a.canOneShot) return context.strategy === 'lowest_level' ? a.pokemon.level - b.pokemon.level : a.interval - b.interval;
-                    return b.dps - a.dps;
-                })[0];
-            }
-            const enemyBase = Math.floor(((2 * enemy.level / 5 + 2) * 50 * enemyStats.attack / chosen.stats.defense) / 50) + 2;
-            const enemyDamage = Math.max(1, Math.floor(Math.floor(enemyBase * getBestTypeEffectiveness(enemyTypes, chosen.types).multiplier) * 1.5));
-            const playerHits = Math.ceil(enemyStats.hp / chosen.minDamage);
-            const enemyHits = Math.max(0, Math.ceil(playerHits * chosen.interval / this.getAttackInterval(enemyStats.speed)) - 1);
-            if (enemyHits * enemyDamage >= chosen.stats.hp) return false;
-        }
-        return true;
-    }
-
-    // 樹果依實際時間生長；同步最近檢查時間。
     _syncBerryGrowth(now = Date.now()) {
         this._berryGrowthLastAt = now;
     }
 
-    // 隊員技能重置後只檢查一次；挑戰或離線結算期間延後至主線重啟。
-    _queueSkillRouteCheck() {
-        this.gameState.pendingSkillRouteCheck = true;
-        this.save();
-        if (this.gameState.settings?.autoRouteSwitch && !this._towerMode && !this._offlineSimState) this._applyPendingSkillRouteCheck();
-    }
-
-    _applyPendingSkillRouteCheck() {
-        if (this.gameState?.currentRoute === 'free_hunting') return false;
-        if (!this.gameState?.pendingSkillRouteCheck || this._towerMode || this._offlineSimState) return false;
-        if (!this.gameState.settings?.autoRouteSwitch) return false;
-        delete this.gameState.pendingSkillRouteCheck;
-        const current = this.getRoute(this.gameState.currentRoute);
-        if (!current?.pokemon?.length) return false;
-        const maxEnemyLevel = route => Math.max(...route.pokemon.map(p => this.getMonsterLevelBoost(p.levelRange[1])));
-        let battleContext;
-        const canFight = route => this._isSkillRecoveryRouteSuitable(route, battleContext ||= this._getSkillRecoveryBattleContext());
-        const goal = this._getSkillRecoveryGoal(this.gameState.skillRecoveryRoute || this.gameState.currentRoute);
-        if (!goal) return false;
-        if (this._isRouteAtOrBeforeRecoveryGoal(current.id, goal.routeId) && canFight(current)) {
-            this.gameState.skillRecoveryRoute = goal.routeId;
-            this.save();
-            return false;
-        }
-        let suitable = null, easiest = null;
-        search: for (const regionKey in REGIONS) {
-            if (!this.isRegionUnlocked(regionKey)) continue;
-            const region = REGIONS[regionKey];
-            for (const route of region.routes) {
-                if (route.pokemon?.length) {
-                    const maxLevel = maxEnemyLevel(route);
-                    const candidate = { routeId: route.id, regionKey, routeName: route.name, regionName: region.name, maxLevel };
-                    if (!easiest || maxLevel < easiest.maxLevel) easiest = candidate;
-                    if ((!suitable || maxLevel > suitable.maxLevel) && canFight(route)) suitable = candidate;
-                }
-                if (route.id === goal.routeId) break search;
-            }
-        }
-        const target = suitable || easiest;
-        if (!target) return false;
-        if (target.routeId === this.gameState.currentRoute) {
-            this.gameState.skillRecoveryRoute = goal.routeId;
-            this.save();
-            return false;
-        }
-        const previousRegion = this.gameState.currentRegion;
-        const previousRecoveryRoute = this.gameState.skillRecoveryRoute;
-        this.gameState.skillRecoveryRoute = goal.routeId;
-        this.changeRegion(target.regionKey);
-        if (!this.changeRoute(target.routeId)) {
-            this.changeRegion(previousRegion);
-            if (previousRecoveryRoute) this.gameState.skillRecoveryRoute = previousRecoveryRoute;
-            else delete this.gameState.skillRecoveryRoute;
-            return false;
-        }
-        if (this.onBattleEvent) this.onBattleEvent('skillResetRouteSwitch', target);
-        return true;
-    }
-
-// 自動切換到下一個未完成的地圖（無需徽章，直接開放）
-tryAutoRouteSwitch() {
+    // 自動切換到下一個未完成的地圖（無需徽章，直接開放）。
+    tryAutoRouteSwitch() {
         if (this._isOfflineSimulating) return null;
         if (this.gameState?.currentRoute === 'free_hunting') return null;
         if (!this.gameState.settings?.autoRouteSwitch) return null;
         if (!this.gameState.currentRoute) return null;
+        if (!this._isRouteCompleteByCondition(this.gameState.currentRoute)) return null;
 
-    let next;
-    let recoveryRoute = this.gameState.skillRecoveryRoute;
-    if (recoveryRoute) {
-            if (!this.findNextIncompleteRoute()) {
-                delete this.gameState.skillRecoveryRoute;
-                this.save();
-                return null;
-            }
-            const boundedGoal = this._getSkillRecoveryGoal(recoveryRoute);
-            if (!boundedGoal) {
-                delete this.gameState.skillRecoveryRoute;
-                this.save();
-                return null;
-            }
-            recoveryRoute = boundedGoal.routeId;
-            this.gameState.skillRecoveryRoute = recoveryRoute;
-            const current = this.getRoute(this.gameState.currentRoute);
-            const goal = this.getRoute(recoveryRoute);
-            if (!current?.pokemon?.length || !goal?.pokemon?.length) {
-                delete this.gameState.skillRecoveryRoute;
-                this.save();
-                return null;
-            }
-            const maxEnemyLevel = route => Math.max(...route.pokemon.map(p => this.getMonsterLevelBoost(p.levelRange[1])));
-            const currentMax = maxEnemyLevel(current);
-            const goalMax = maxEnemyLevel(goal);
-            const beyondProgress = !this._isRouteAtOrBeforeRecoveryGoal(current.id, recoveryRoute);
-            let battleContext;
-            const canFight = route => this._isSkillRecoveryRouteSuitable(route, battleContext ||= this._getSkillRecoveryBattleContext());
-            if (this.gameState.currentRoute === recoveryRoute) {
-                return null;
-            }
-            let easiest = null;
-            recoverySearch: for (const regionKey in REGIONS) {
-                if (!this.isRegionUnlocked(regionKey)) continue;
-                const region = REGIONS[regionKey];
-                for (const route of region.routes) {
-                    if (!route.pokemon?.length) {
-                        if (route.id === recoveryRoute) break recoverySearch;
-                        continue;
-                    }
-                    const maxLevel = maxEnemyLevel(route);
-                    if (beyondProgress && (!easiest || maxLevel < easiest.maxLevel)) {
-                        easiest = { routeId: route.id, regionKey, routeName: route.name, regionName: region.name, maxLevel, skillRecovery: true };
-                    }
-                    if (route.id === recoveryRoute && canFight(route)) {
-                        next = { routeId: route.id, regionKey, routeName: route.name, regionName: region.name, maxLevel, skillRecovery: true };
-                        break recoverySearch;
-                    }
-                    if ((beyondProgress || maxLevel > currentMax) && maxLevel <= goalMax && (!next || maxLevel > next.maxLevel) && canFight(route)) {
-                        next = { routeId: route.id, regionKey, routeName: route.name, regionName: region.name, maxLevel, skillRecovery: true };
-                    }
-                    if (route.id === recoveryRoute) break recoverySearch;
-                }
-            }
-            if (!next && beyondProgress) next = easiest;
-            if (!next) return null;
-    } else {
-            // 平常依完成條件與原有地圖順序切換。
-            if (!this._isRouteCompleteByCondition(this.gameState.currentRoute)) return null;
-            next = this.findNextIncompleteRoute();
-        }
-        if (!next) return null; // 全部完成，不切換
+        const next = this.findNextIncompleteRoute();
+        if (!next) return null;
 
-        // 切換到新地圖
         this.gameState.currentRoute = next.routeId;
         this.recordHighestVisitedRoute(next.routeId);
         this.gameState.currentRegion = next.regionKey;
-        this.gameState.currentEnemy = null; // 清除當前敵方
-        this.resetRateTracker(); // 自動切換地圖時重置速率統計
+        this.gameState.currentEnemy = null;
+        this.resetRateTracker();
         this.save();
-
         return next;
     }
 
@@ -3506,6 +3305,8 @@ tryAutoRouteSwitch() {
             // 確保activePokemonIndex在範圍內
             if (parsed.activePokemonIndex >= parsed.team.length) parsed.activePokemonIndex = 0;
 
+            delete parsed.pendingSkillRouteCheck;
+            delete parsed.skillRecoveryRoute;
             this.gameState = parsed;
             this.repairHuntingLocation();
             this.recordHighestVisitedRoute();
@@ -4393,7 +4194,6 @@ tryAutoRouteSwitch() {
         if (!baseData) return { success: false, message: '無效的寶可夢' };
 
         const oldLevel = storedData.level;
-        const wasInTeam = this.gameState.team.includes(pokemonId);
 
         const skillGain = Math.min(MAX_SKILL_LEVEL - currentSkillLevel, Math.floor(oldLevel / SKILL_LEVEL_REQUIREMENT));
         storedData.level = 1;
@@ -4420,7 +4220,6 @@ tryAutoRouteSwitch() {
         }
 
         this.save();
-        if (wasInTeam) this._queueSkillRouteCheck();
         return {
             success: true,
             newSkillLevel: storedData.skillLevel,
@@ -4436,7 +4235,6 @@ tryAutoRouteSwitch() {
         if (!this.isSkillUnlocked()) return { success: false, message: '技能系統尚未解鎖' };
 
         const results = [];
-        let resetTeamMember = false;
         let resetActiveMember = false;
         for (const pokemonId in this.gameState.caughtPokemon) {
             const storedData = this.gameState.caughtPokemon[pokemonId];
@@ -4450,7 +4248,6 @@ tryAutoRouteSwitch() {
             if (!baseData) continue;
 
             const oldLevel = storedData.level;
-            if (this.gameState.team.some(id => String(id) === String(pokemonId))) resetTeamMember = true;
             if (String(this.gameState.team[this.gameState.activePokemonIndex]) === String(pokemonId)) resetActiveMember = true;
 
             const skillGain = Math.min(MAX_SKILL_LEVEL - currentSkillLevel, Math.floor(oldLevel / SKILL_LEVEL_REQUIREMENT));
@@ -4489,7 +4286,6 @@ tryAutoRouteSwitch() {
         }
 
         this.save();
-        if (resetTeamMember) this._queueSkillRouteCheck();
         return { success: true, count: results.length, results };
     }
 

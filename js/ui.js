@@ -654,12 +654,6 @@ class GameUI {
                 break;
             }
             case 'autoRouteSwitch': {
-                if (data.skillRecovery) {
-                    this.addBattleLog(`📈 隊伍等級提升，自動前往 ${data.regionName} · ${data.routeName}`, 'normal');
-                    this.showToast(`📈 隊伍等級提升，自動切換到 ${data.routeName}`);
-                    if (this.currentTab === 'tab-map') this.renderMap({ preserveView: true });
-                    break;
-                }
                 const condition = this.game.gameState.settings?.routeSwitchCondition || '6v_shiny';
                 const doneText = condition === 'region_caught' ? '當前道路寶可夢已全數捕獲' : `當前地圖已${condition === '6v_only' ? '全部6V' : '全部6V+閃光'}`;
                 this.addBattleLog(`💎 ${doneText}！自動前往 ${data.regionName} · ${data.routeName}`, 'evolution');
@@ -667,11 +661,6 @@ class GameUI {
                 if (this.currentTab === 'tab-map') this.renderMap({ preserveView: true });
                 break;
             }
-            case 'skillResetRouteSwitch':
-                this.addBattleLog(`📍 技能升級後依隊伍等級切換到 ${data.regionName} · ${data.routeName}`, 'normal');
-                this.showToast(`📍 技能升級後自動切換到 ${data.routeName}`);
-                if (this.currentTab === 'tab-map') this.renderMap({ preserveView: true });
-                break;
         }
     }
 
@@ -1592,26 +1581,10 @@ class GameUI {
         checkbox.addEventListener('change', () => {
             this.game.gameState.settings = this.game.gameState.settings || {};
             this.game.gameState.settings.autoRouteSwitch = checkbox.checked;
-            if (checkbox.checked && this.game.gameState.skillRecoveryRoute) this.game.gameState.pendingSkillRouteCheck = true;
             this.game.save();
-            if (checkbox.checked && this.game.gameState.pendingSkillRouteCheck) this.game._applyPendingSkillRouteCheck();
             this.showToast(checkbox.checked ? '✅ 已開啟自動切換地圖' : '❌ 已關閉自動切換地圖');
             // 聯動顯示/隱藏條件選項
             this._syncRouteSwitchConditionVisibility();
-        });
-        document.getElementById('btn-resume-skill-recovery').addEventListener('click', () => {
-            if (this.game._offlineSimState || this.game._towerMode) {
-                this.showToast('⚠️ 挑戰或離線結算期間無法調整地圖');
-                return;
-            }
-            this.showConfirmDialog('恢復技能重練', '將依目前隊伍等級調整地圖並開始新戰鬥；不會越過未完成的地圖。確定繼續嗎？', () => {
-                if (this.game._offlineSimState || this.game._towerMode || !this.game.gameState.settings?.autoRouteSwitch) {
-                    this.showToast('⚠️ 遊戲狀態已改變，請重新確認');
-                    return;
-                }
-                this.game._queueSkillRouteCheck();
-                this._syncRouteSwitchConditionVisibility();
-            });
         });
         // 初始化條件單選框
         this._initRouteSwitchCondition();
@@ -1642,11 +1615,6 @@ class GameUI {
         if (!group) return;
         const autoSwitch = !!this.game.gameState.settings?.autoRouteSwitch;
         group.style.display = autoSwitch ? '' : 'none';
-        const recover = document.getElementById('btn-resume-skill-recovery');
-        const route = this.game.getRoute(this.game.gameState.currentRoute);
-        const highestEnemy = route?.pokemon?.length ? Math.max(...route.pokemon.map(p => this.game.getMonsterLevelBoost(p.levelRange[1]))) : 0;
-        const hasSkill = this.game.gameState.team.some(id => (this.game.getStoredData(id)?.skillLevel || 0) > 0);
-        recover.hidden = !(autoSwitch && hasSkill && !this.game.gameState.skillRecoveryRoute && !this.game.gameState.pendingSkillRouteCheck && highestEnemy > this.game.getHighestTeamLevel());
     }
 
     // 一鍵升級技能按鈕初始化
