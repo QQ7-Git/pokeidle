@@ -361,9 +361,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     .badge-region-column, .badge-gem-column { flex: 1 1 0; min-height: 0; overflow-y: auto; scrollbar-color: var(--border) transparent; }
     .badge-region-column { padding-right: 6px; }
     .badge-gem-column { padding-right: 6px; }
-    #gem-bag-section { order: 0; }
-    #shop-section { order: 1; }
-    #gem-bonus-section { order: 2; }
 }
 .badge-eyebrow { display: block; margin-bottom: 6px; color: var(--accent); font-size: 10px; font-weight: 700; letter-spacing: .16em; }
 #badge-header h2 { font-size: 22px; letter-spacing: .04em; }
@@ -390,8 +387,19 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .badge-gem-details { margin-top: 8px; border-top: 1px solid var(--border); }
 .badge-gem-details summary { padding: 7px 0 0; color: var(--text-secondary); font-size: 11px; cursor: pointer; }
 .badge-gem-details .gem-attrs-mini { margin: 8px 0 0; }
-#shop-section, #gem-bag-section, #gem-bonus-section { padding: 18px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); }
-#shop-section h3, #gem-bag-section h3, #gem-bonus-section h3 { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border); font-size: 15px; }
+#shop-section, #gem-bag-section { padding: 18px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary); }
+#shop-section h3, #gem-bag-section h3 { padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border); font-size: 15px; }
+#badge-header #gem-bonus-section { flex: 0 1 440px; min-width: 0; margin-left: auto; padding: 9px 12px; border: 1px solid rgba(77,243,220,.22); border-radius: 6px; background: rgba(10, 28, 31, .7); }
+#badge-header #gem-bonus-section h3 { margin: 0 0 7px; padding: 0; border: 0; color: var(--accent-light); font-size: 12px; letter-spacing: .04em; }
+#badge-header #gem-bonus-list { display: flex; flex-flow: row wrap; gap: 5px; max-height: 76px; overflow-y: auto; scrollbar-color: var(--border) transparent; }
+#badge-header .gem-bonus-line { justify-content: flex-start; gap: 6px; padding: 4px 7px; font-size: 11px; white-space: nowrap; background: rgba(77,243,220,.06); border-color: rgba(77,243,220,.14); }
+#badge-header .gem-bonus-value { color: #53e5ad; }
+#badge-header .gem-bonus-empty { padding: 2px 0; text-align: left; font-size: 11px; }
+@media (max-width: 700px) {
+    #badge-header { flex-wrap: wrap; }
+    #badge-header #gem-bonus-section { order: 3; flex: 1 1 100%; margin-left: 0; }
+    #gold-display { margin-left: auto; }
+}
 .shop-desc { line-height: 1.6; }
 #shop-actions { gap: 8px; }
 #synthesis-actions { padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--border); }
@@ -529,7 +537,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     #badge-header { padding: 14px; }
     #badge-header h2 { font-size: 18px; }
     #gold-display { padding: 7px; font-size: 12px; }
-    #shop-section, #gem-bag-section, #gem-bonus-section { padding: 14px; }
+    #shop-section, #gem-bag-section { padding: 14px; }
     #gem-bag-count { margin-left: 0; }
 }
 @media (min-width: 900px) {
