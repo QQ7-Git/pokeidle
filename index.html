@@ -12,7 +12,7 @@
         <!-- 頂部狀態列 -->
         <header id="header">
             <div class="brand-mark" aria-hidden="true"><span></span></div>
-            <div class="brand-copy"><h1 class="brand-eyebrow">PokéIdle</h1></div>
+            <div class="brand-copy"><h1 class="brand-eyebrow">PokéIdle</h1><span class="version-tag">v1.1.0</span></div>
         </header>
 
         <!-- 主內容區 -->
@@ -252,6 +252,7 @@
                     </div>
                     <!-- 操作按鈕 -->
                     <div id="tower-actions">
+                        <label class="setting-toggle"><input type="checkbox" id="tower-auto-next"><span class="toggle-slider"></span><span class="toggle-label">自動挑戰下一層（直到失敗）</span></label>
                         <button id="btn-tower-start" class="tower-action-btn start">⚔️ 開始挑戰</button>
                         <button id="btn-tower-replay" class="tower-action-btn start" style="display:none;">🔄 重複挑戰最高層</button>
                         <button id="btn-tower-flee" class="tower-action-btn flee" style="display:none;">🏃 撤退</button>
@@ -332,6 +333,11 @@
                         <button id="btn-gameplay-help" class="setting-btn">檢視玩法說明</button>
                         <a class="setting-btn settings-source-link" href="https://github.com/QQ7-Git/pokeidle" target="_blank" rel="noopener noreferrer">📄 正式版原始碼與授權</a>
                     </div>
+                    <section class="settings-section update-history">
+                        <h3>📋 更新紀錄</h3>
+                        <details><summary>v1.1.0 — 功能更新</summary><ul><li>新增自由狩獵場與極限對戰塔逐層加成。</li><li>改善隊伍血量、技能顯示及未來潛力推薦。</li><li>新增對戰塔重複挑戰與自動挑戰下一層。</li><li>調整徽章與寶石介面。</li></ul></details>
+                        <details><summary>v1.0.0 — 公開版基準</summary><p>發布 PokéIdle 修改版本。</p></details>
+                    </section>
                     <div class="settings-section settings-save">
                         <h3>💾 存檔管理</h3>
                         <div class="settings-buttons">
@@ -441,6 +447,7 @@
     <script src="js/sprite-bounds.js"></script>
     <script src="js/sprite-animation-bounds.js"></script>
     <script src="js/sprite-square-bounds.js"></script>
+    <script src="js/sprite-extra-bounds.js"></script>
     <script src="js/route-data.js"></script>
     <script src="js/game-config.js"></script>
     <script src="js/game-core.js"></script>

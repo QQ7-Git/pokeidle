@@ -4900,6 +4900,7 @@ class GameCore {
                 this.onBattleEvent('towerFloorCleared', {
                     floor: tower.currentFloor,
                     highestFloor: tower.highestFloor,
+                    autoNext: !tower.replayPrevious && tower.currentFloor < TOWER_MAX_FLOOR && !!this.gameState.settings?.autoTower,
                 });
             }
 
@@ -4959,6 +4960,7 @@ class GameCore {
         }
 
         // 失敗後重置進度，重新挑戰從第一隻怪開始
+        if (this.gameState.settings) this.gameState.settings.autoTower = false;
         this._towerMode = false;
         this._towerFaintedIds = null;
         this._towerHpById = null;

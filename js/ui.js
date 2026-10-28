@@ -488,6 +488,16 @@ class GameUI {
                 this.showToast(`🗼 極限對戰塔第 ${data.floor} 層通關！`);
                 // 通關後切回挑戰島頁面並恢復主線戰鬥
                 setTimeout(() => {
+                    if (data.autoNext && this.game.gameState.settings?.autoTower && !this.game._towerMode && this.game.gameState.tower.currentFloor === data.floor + 1) {
+                        const result = this.game.enterTower();
+                        if (result.success) {
+                            this.showToast(`🗼 自動挑戰第 ${this.game.gameState.tower.currentFloor} 層！`);
+                            this.addBattleLog(`🗼 自動挑戰第 ${this.game.gameState.tower.currentFloor} 層！`, 'evolution');
+                            this.switchTab('tab-battle');
+                            this.game.startTowerBattle();
+                            return;
+                        }
+                    }
                     this.switchTab('tab-tower');
                     this.game.startBattle(); // 恢復主線
                 }, 500);
@@ -4177,6 +4187,8 @@ class GameUI {
         const startBtn = document.getElementById('btn-tower-start');
         const fleeBtn = document.getElementById('btn-tower-flee');
         const replayBtn = document.getElementById('btn-tower-replay');
+        const autoNext = document.getElementById('tower-auto-next');
+        if (autoNext) autoNext.checked = !!this.game.gameState.settings?.autoTower;
         if (replayBtn) {
             replayBtn.style.display = !this.game._towerMode && tower.highestFloor > 0 ? 'inline-block' : 'none';
             replayBtn.textContent = `🔄 重複挑戰第 ${tower.highestFloor} 層（重新抽取敵人）`;
@@ -4213,6 +4225,12 @@ class GameUI {
         const startBtn = document.getElementById('btn-tower-start');
         const fleeBtn = document.getElementById('btn-tower-flee');
         const replayBtn = document.getElementById('btn-tower-replay');
+        const autoNext = document.getElementById('tower-auto-next');
+        if (autoNext) autoNext.addEventListener('change', () => {
+            this.game.gameState.settings ||= {};
+            this.game.gameState.settings.autoTower = autoNext.checked;
+            this.game.save();
+        });
 
         if (replayBtn) replayBtn.addEventListener('click', () => {
             const result = this.game.enterTower(true);
@@ -4248,6 +4266,7 @@ class GameUI {
         if (fleeBtn) {
             fleeBtn.addEventListener('click', () => {
                 if (!this.game._towerMode) return;
+                if (this.game.gameState.settings) this.game.gameState.settings.autoTower = false;
                 this.game.exitTower();
                 this.addBattleLog(`🏃 撤退了極限對戰塔`, 'info');
                 this.showToast('🏃 已撤退，返回主線戰鬥');
