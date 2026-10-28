@@ -41,6 +41,7 @@ class GameUI {
 
     // ===================== 事件監聽 =====================
     setupEventListeners() {
+        this._setupBerryEvents();
         document.getElementById('berry-ready-open').addEventListener('click', () => this.switchTab('tab-berry'));
         document.getElementById('berry-ready-dismiss').addEventListener('click', () => {
             const plots = this.game.gameState?.berryPlots || [];
@@ -1063,9 +1064,9 @@ class GameUI {
             const raw = POKEMON_DATA[parent].evolvesTo;
             const evolution = (Array.isArray(raw) ? raw : raw ? [raw] : []).find(entry => entry.id === id);
             if (!evolution) break;
-            const regionId = id <= 151 ? 'kanto' : id <= 251 ? 'johto' : id <= 386 ? 'hoenn' : id <= 493 ? 'sinnoh' : id <= 649 ? 'unova' : id <= 721 ? 'kalos' : id <= 809 ? 'alola' : id <= 905 ? 'galar' : id <= 1025 ? 'paldea' : 'mega';
-            const region = REGIONS[regionId];
-            const requirement = regionId === 'kanto' ? '' : `（需解鎖${region?.name || regionId}）`;
+            const regionId = this.game.getEvolutionRegionId(id);
+            const region = regionId ? REGIONS[regionId] : null;
+            const requirement = regionId ? `（需解鎖${region?.name || regionId}）` : '';
             steps.unshift(`${POKEMON_DATA[parent].name} Lv.${evolution.level} → ${POKEMON_DATA[id].name}${requirement}`);
             id = parent;
         }
@@ -1715,8 +1716,15 @@ class GameUI {
         form.className = 'route-card hunting-form';
         const config = this.game.gameState.huntingGround || {};
         const level = this.game.getHuntingLevel();
-        form.innerHTML = `<div class="hunting-heading"><div><span class="hunting-eyebrow">CUSTOM HUNT</span><h3>🎯 自由狩獵場</h3><p>依類別選擇六隻不同的寶可夢，點擊欄位開啟選擇視窗。</p></div><span class="hunting-level">敵人 Lv.${level}</span></div><div class="hunting-notice"><span>✨ 單項 V 與閃光為一般野外 70%</span><span>⏸ 關閉網頁不產生狩獵收益</span></div><p class="hunting-help">一般進化鏈僅限最基礎形態；Mega 算準神，傳說／幻之 Mega 除外。固定出現率：傳說／幻之 5%、準神各 10%、其他各 25%；不套用完成寶可夢的徽章權重調整。</p><div class="hunting-inputs"></div><p class="hunting-count"></p><div class="hunting-preview"></div><p class="hunting-error" role="alert"></p><button class="hunting-submit" type="submit">開始狩獵</button><dialog class="hunting-picker" aria-labelledby="hunting-picker-title"><div class="hunting-picker-heading"><h3 id="hunting-picker-title"></h3><button type="button" class="hunting-picker-close" aria-label="關閉選擇視窗">✕</button></div><input type="search" class="hunting-picker-search" placeholder="搜尋名稱或編號" aria-label="搜尋寶可夢"><p class="hunting-picker-count"></p><div class="hunting-picker-grid"></div></dialog>`;
+        form.innerHTML = `<div class="hunting-heading"><div><span class="hunting-eyebrow">CUSTOM HUNT</span><h3>🎯 自由狩獵場</h3><p>依類別選擇六隻不同的寶可夢，點擊欄位開啟選擇視窗。</p></div><span class="hunting-level">敵人 Lv.${level}</span></div><div class="hunting-notice"><span>✨ 單項 V 與閃光為一般野外 70%</span></div><p class="hunting-help">一般進化鏈僅限最基礎形態；Mega 算準神，傳說／幻之 Mega 除外。固定出現率：傳說／幻之 5%、準神各 10%、其他各 25%；不套用完成寶可夢的徽章權重調整。</p><div class="hunting-inputs"></div><p class="hunting-count"></p><div class="hunting-preview"></div><p class="hunting-error" role="alert"></p><button class="hunting-submit" type="submit">開始狩獵</button><dialog class="hunting-picker" aria-labelledby="hunting-picker-title"><div class="hunting-picker-heading"><h3 id="hunting-picker-title"></h3><button type="button" class="hunting-picker-close" aria-label="關閉選擇視窗">✕</button></div><input type="search" class="hunting-picker-search" placeholder="搜尋名稱或編號" aria-label="搜尋寶可夢"><p class="hunting-picker-count"></p><div class="hunting-picker-grid"></div></dialog>`;
         const inputs = form.querySelector('.hunting-inputs');
+        const backgroundNotice = document.createElement('span');
+        const offlineRoute = this.game.getRoute(this.game.gameState.highestVisitedRoute);
+        const offlineRegion = offlineRoute && Object.values(REGIONS).find(region => region.routes?.some(route => route.id === offlineRoute.id));
+        backgroundNotice.textContent = offlineRoute
+            ? `🌙 背景持續狩獵；關閉網頁後於「${offlineRegion?.name || ''} ${offlineRoute.name}」離線結算`
+            : '🌙 背景持續狩獵；請先到一般道路建立離線地圖紀錄';
+        form.querySelector('.hunting-notice').appendChild(backgroundNotice);
         const categories = ['legendary', 'pseudo', 'pseudo', 'other', 'other', 'other'];
         const labels = ['傳說／幻之', '準神 1', '準神 2', '其他 1', '其他 2', '其他 3'];
         const buckets = { legendary: [], pseudo: [], other: [] };
@@ -2354,7 +2362,6 @@ class GameUI {
         this._renderBerryPlots();
         this._renderBerryBag();
         this._renderBerryPlantOptions();
-        this._bindBerryEvents();
     }
 
     _renderBerryBagSummary() {
@@ -2468,62 +2475,31 @@ class GameUI {
         return names[stat] || stat;
     }
 
-    // 僅繫結田地格子裡動態生成的採摘按鈕（定時器每秒呼叫，不影響靜態按鈕）
-    _bindBerryPlotEvents() {
-        document.querySelectorAll('.berry-harvest-btn').forEach(btn => {
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-            newBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const index = parseInt(newBtn.dataset.plotIndex);
-                const result = this.game.harvestBerry(index);
-                if (result.success) {
-                    this.showToast(`🧺 採摘了 ${result.count} 個${result.berryName}！`);
-                    this.renderBerryPage();
-                } else {
-                    this.showToast('⚠️ ' + result.message);
-                }
-            });
-        });
-    }
-
-    // 完整繫結所有樹果事件（僅在 renderBerryPage 時呼叫）
-    _bindBerryEvents() {
-        // 田地採摘按鈕
-        this._bindBerryPlotEvents();
-
-        // 一鍵採摘
-        const harvestAllBtn = document.getElementById('btn-harvest-all');
-        if (harvestAllBtn) {
-            const newBtn = harvestAllBtn.cloneNode(true);
-            harvestAllBtn.parentNode.replaceChild(newBtn, harvestAllBtn);
-            newBtn.addEventListener('click', () => {
-                const result = this.game.harvestAllBerries();
-                if (result.success) {
-                    const totalCount = result.results.reduce((s, r) => s + r.count, 0);
-                    this.showToast(`🧺 一鍵採摘了 ${totalCount} 個樹果！`);
-                    this.renderBerryPage();
-                } else {
-                    this.showToast('⚠️ ' + result.message);
-                }
-            });
-        }
-
-        // 種植按鈕（cloneNode 移除舊監聽器，防止重複繫結）
-        document.querySelectorAll('.berry-plant-btn').forEach(btn => {
-            const newBtn = btn.cloneNode(true);
-            btn.parentNode.replaceChild(newBtn, btn);
-            newBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const berryId = newBtn.dataset.berryId;
-                const result = this.game.plantBerry(berryId);
-                if (result.success) {
-                    this.showToast(`🌱 已種植${BERRY_DATA[berryId].name}！`);
-                    this.renderBerryPage();
-                } else {
-                    this.showToast('⚠️ ' + result.message);
-                }
-            });
+    // 樹果頁以事件委派處理動態按鈕，重新渲染時不必重複繫結。
+    _setupBerryEvents() {
+        document.getElementById('berry-container').addEventListener('click', event => {
+            const button = event.target.closest('.berry-harvest-btn, .berry-plant-btn, #btn-harvest-all');
+            if (!button) return;
+            let result, message;
+            if (button.matches('.berry-harvest-btn')) {
+                event.stopPropagation();
+                result = this.game.harvestBerry(parseInt(button.dataset.plotIndex));
+                if (result.success) message = `🧺 採摘了 ${result.count} 個${result.berryName}！`;
+            } else if (button.matches('.berry-plant-btn')) {
+                event.stopPropagation();
+                const berryId = button.dataset.berryId;
+                result = this.game.plantBerry(berryId);
+                if (result.success) message = `🌱 已種植${BERRY_DATA[berryId].name}！`;
+            } else {
+                result = this.game.harvestAllBerries();
+                if (result.success) message = `🧺 一鍵採摘了 ${result.results.reduce((s, r) => s + r.count, 0)} 個樹果！`;
+            }
+            if (result.success) {
+                this.showToast(message);
+                this.renderBerryPage();
+            } else {
+                this.showToast('⚠️ ' + result.message);
+            }
         });
     }
 
@@ -2548,7 +2524,6 @@ class GameUI {
             this.updateBerryReadyAlert();
             if (this.currentTab === 'tab-berry' && this.game.isBerryUnlocked()) {
                 this._renderBerryPlots();
-                this._bindBerryPlotEvents(); // 僅重綁田地裡動態生成的採摘按鈕
             }
         }, 1000);
     }
@@ -2839,7 +2814,7 @@ class GameUI {
         this.game._importedLastSave = null;
         // 匯入後不能使用匯入前的戰鬥快取來結算新存檔。
         this.game.currentBattle = null;
-        if (importedLastSave && this.game.gameState.currentRoute !== 'free_hunting') {
+        if (importedLastSave && this.game.getOfflineBattleRoute()) {
             const elapsed = Date.now() - importedLastSave;
             if (elapsed > 2000) {
                 const offlineBonusValue = this.game.getBadgeEffectValue('offline_time_bonus');
@@ -2899,6 +2874,19 @@ class GameUI {
         this.addBattleLog(`🌟 ${data.oldName} 進化成了 ${data.newName}！等級重置為 Lv.1`, 'evolution');
     }
 
+    _dismissModalOverlay(overlay, onClose, delay = 0) {
+        const finish = () => {
+            overlay.remove();
+            if (onClose) onClose();
+        };
+        if (delay > 0) {
+            overlay.classList.add('tutorial-closing');
+            setTimeout(finish, delay);
+        } else {
+            finish();
+        }
+    }
+
     showConfirmDialog(title, message, onConfirm) {
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay';
@@ -2913,13 +2901,10 @@ class GameUI {
             </div>
         `;
 
-        overlay.querySelector('.cancel-btn').addEventListener('click', () => overlay.remove());
-        overlay.querySelector('.confirm-btn').addEventListener('click', () => {
-            overlay.remove();
-            onConfirm();
-        });
+        overlay.querySelector('.cancel-btn').addEventListener('click', () => this._dismissModalOverlay(overlay));
+        overlay.querySelector('.confirm-btn').addEventListener('click', () => this._dismissModalOverlay(overlay, onConfirm));
         overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) overlay.remove();
+            if (e.target === overlay) this._dismissModalOverlay(overlay);
         });
 
         document.body.appendChild(overlay);
@@ -2983,10 +2968,7 @@ class GameUI {
                 </div>
                 <div class="modal-buttons"><button type="button" class="confirm-btn tutorial-start-btn">確認</button></div>
             </div>`;
-        overlay.querySelector('.tutorial-start-btn').addEventListener('click', () => {
-            overlay.remove();
-            if (onClose) onClose();
-        });
+        overlay.querySelector('.tutorial-start-btn').addEventListener('click', () => this._dismissModalOverlay(overlay, onClose));
         document.body.appendChild(overlay);
     }
 
@@ -3033,13 +3015,7 @@ class GameUI {
             </div>
         `;
 
-        overlay.querySelector('.tutorial-start-btn').addEventListener('click', () => {
-            overlay.classList.add('tutorial-closing');
-            setTimeout(() => {
-                overlay.remove();
-                if (onClose) onClose();
-            }, 300);
-        });
+        overlay.querySelector('.tutorial-start-btn').addEventListener('click', () => this._dismissModalOverlay(overlay, onClose, 300));
 
         document.body.appendChild(overlay);
     }
