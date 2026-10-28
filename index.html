@@ -12,7 +12,7 @@
         <!-- 頂部狀態列 -->
         <header id="header">
             <div class="brand-mark" aria-hidden="true"><span></span></div>
-            <div class="brand-copy"><h1 class="brand-eyebrow">PokéIdle</h1><span class="version-tag">v1.1.2</span></div>
+            <div class="brand-copy"><h1 class="brand-eyebrow">PokéIdle</h1><span class="version-tag">v1.2.0</span></div>
         </header>
 
         <!-- 主內容區 -->
@@ -67,10 +67,12 @@
                         </div>
                         <div id="type-matchup" class="type-matchup-info"></div>
                     </div>
-                    <p class="battle-scale-note">圖片依雙方寶可夢的大小比例調整，顯示比例為近似值。</p>
+                    <p class="battle-scale-note">圖片依敵我寶可夢大小比例調整，顯示尺寸差距最多為 1.6 倍（依圖片可見範圍估算）。</p>
                     <div id="battle-log">
+                        <div id="road-failure-status" class="road-failure-status" role="status" hidden></div>
                         <div class="log-panel">
                             <div class="log-panel-heading">⚔️ 戰鬥紀錄</div>
+                            <div id="road-failure-count" class="road-failure-count" role="status" hidden></div>
                             <div id="battle-messages" class="log-messages"></div>
                         </div>
                         <div class="log-panel">
@@ -325,11 +327,13 @@
                             <span class="toggle-slider"></span>
                             <span class="toggle-label">🔄 自動切換地圖</span>
                         </label>
-                        <p class="setting-desc" id="setting-auto-route-desc">平時依完成條件與地圖順序切換。技能重置後按隊伍等級及戰力估算地圖難度，可跨等練級，但不會越過第一個未完成地圖。</p>
+                        <p class="setting-desc" id="setting-auto-route-desc">可選擇依道路 6V、6V＋閃光，或捕獲當前道路所有出現寶可夢後切換。技能重置後依隊伍等級及戰力估算地圖難度。</p>
+                        <p class="setting-desc">🛡️ 道路連敗保護（固定開啟）：一般道路連續失敗 10 次後自動退回前一道路。</p>
                         <div id="route-switch-condition-group" class="setting-radio-group" style="display:none;">
                             <p class="setting-radio-label">📋 切換條件：</p>
                             <label class="setting-radio"><input type="radio" name="route-switch-condition" value="6v_shiny"> ✨ 全部6V且閃光後切換</label>
                             <label class="setting-radio"><input type="radio" name="route-switch-condition" value="6v_only"> 🎯 全部6V後切換</label>
+                            <label class="setting-radio"><input type="radio" name="route-switch-condition" value="region_caught"> 📖 捕獲當前道路所有寶可夢後切換</label>
                         </div>
                         <button id="btn-resume-skill-recovery" class="setting-btn" type="button" hidden>📍 依隊伍等級恢復技能重練</button>
                     </div>
@@ -341,7 +345,8 @@
                     </div>
                     <section class="settings-section update-history">
                         <h3>📋 更新紀錄</h3>
-                        <details open><summary>v1.1.2 — 自由狩獵場</summary><ul><li>網頁開啟時可在背景持續狩獵；關閉後以曾到達的最高一般道路結算。</li><li>一般道路離線結算固定使用離開前所在道路。</li><li>修正自由狩獵場推薦隊伍的出現權重。</li><li>整理戰鬥計算、樹果介面與進化地區判定程式。</li></ul></details>
+                        <details open><summary>v1.2.0 — 地圖與戰鬥體驗改善</summary><ul><li>改善道路切換與連敗退路。</li><li>新增道路寶可夢懸浮卡與未遇見遮蔽。</li><li>新增閃光出場特效。</li><li>調整戰鬥寶可夢尺寸比例。</li></ul></details>
+                        <details><summary>v1.1.2 — 自由狩獵場</summary><ul><li>網頁開啟時可在背景持續狩獵；關閉後以曾到達的最高一般道路結算。</li><li>一般道路離線結算固定使用離開前所在道路。</li><li>修正自由狩獵場推薦隊伍的出現權重。</li><li>整理戰鬥計算、樹果介面與進化地區判定程式。</li></ul></details>
                         <details><summary>v1.1.1 — 設定與推薦提示</summary><ul><li>新增自動戰鬥設定指引，可選擇不再提示。</li><li>未來潛力推薦顯示模擬進化的野外道路與進化條件。</li><li>戰鬥頁新增樹果成熟提示。</li></ul></details>
                         <details><summary>v1.1.0 — 功能更新</summary><ul><li>新增自由狩獵場與極限對戰塔逐層加成。</li><li>改善隊伍血量、技能顯示及未來潛力推薦。</li><li>新增對戰塔重複挑戰與自動挑戰下一層。</li><li>調整徽章與寶石介面。</li></ul></details>
                         <details><summary>v1.0.0 — 公開版基準</summary><p>發布 PokéIdle 修改版本。</p></details>
@@ -405,10 +410,28 @@
         <div id="team-replace-list" class="team-replace-list"></div>
         <div class="recommend-actions"><form method="dialog"><button class="recommend-cancel">取消</button></form></div>
     </dialog>
+    <dialog id="deoxys-form-dialog" aria-labelledby="deoxys-form-title">
+        <div class="stat-dialog-header"><h2 id="deoxys-form-title">設定代歐奇希斯</h2><form method="dialog"><button class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
+        <p class="recommend-desc">選擇加入隊伍或戰鬥時使用的型態與外觀。</p>
+        <fieldset id="deoxys-form-options" class="team-appearance deoxys-form-options">
+            <legend><span>型態（影響種族值）</span></legend>
+            <label><input type="radio" name="deoxys-form" value="normal" checked><span class="team-appearance-card"><img data-deoxys-preview="normal" src="sprites/animated/deoxys/normal/normal.gif" alt=""><span><strong>普通形態</strong></span></span></label>
+            <label><input type="radio" name="deoxys-form" value="attack"><span class="team-appearance-card"><img data-deoxys-preview="attack" src="sprites/animated/deoxys/normal/attack.gif" alt=""><span><strong>攻擊形態</strong></span></span></label>
+            <label><input type="radio" name="deoxys-form" value="defense"><span class="team-appearance-card"><img data-deoxys-preview="defense" src="sprites/animated/deoxys/normal/defense.gif" alt=""><span><strong>防禦形態</strong></span></span></label>
+            <label><input type="radio" name="deoxys-form" value="speed"><span class="team-appearance-card"><img data-deoxys-preview="speed" src="sprites/animated/deoxys/normal/speed.gif" alt=""><span><strong>速度形態</strong></span></span></label>
+        </fieldset>
+        <label id="deoxys-shiny-option" class="deoxys-shiny-option"><input id="deoxys-shiny-checkbox" type="checkbox"> 閃光</label>
+        <div class="recommend-actions"><form method="dialog"><button class="recommend-cancel">取消</button></form><button type="button" id="deoxys-form-confirm">套用設定</button></div>
+    </dialog>
     <dialog id="team-appearance-dialog" aria-labelledby="team-appearance-title">
         <div class="stat-dialog-header"><h2 id="team-appearance-title">選擇隊員外觀</h2><form method="dialog"><button class="stat-dialog-close" aria-label="關閉">✕</button></form></div>
         <p id="team-appearance-description" class="recommend-desc"></p>
-        <div class="recommend-actions"><form method="dialog"><button class="recommend-cancel">取消</button></form><button type="button" id="team-appearance-normal">普通</button><button type="button" id="team-appearance-shiny">✨ 閃光</button></div>
+        <fieldset id="team-appearance-options" class="team-appearance">
+            <legend><span>加入後的外觀</span></legend>
+            <label><input type="radio" name="team-appearance" value="shiny" checked><span class="team-appearance-card"><img data-appearance-preview="shiny" alt=""><span><strong>✨ 閃光</strong><small>閃光配色</small></span></span></label>
+            <label><input type="radio" name="team-appearance" value="normal"><span class="team-appearance-card"><img data-appearance-preview="normal" alt=""><span><strong>普通</strong><small>原始配色</small></span></span></label>
+        </fieldset>
+        <div class="recommend-actions"><form method="dialog"><button class="recommend-cancel">取消</button></form><button type="button" id="team-appearance-confirm">加入隊伍</button></div>
     </dialog>
     <dialog id="team-recommend-options" aria-labelledby="team-recommend-options-title">
         <div class="stat-dialog-header"><h2 id="team-recommend-options-title">選擇推薦模式</h2><form method="dialog"><button class="stat-dialog-close" aria-label="關閉">✕</button></form></div>

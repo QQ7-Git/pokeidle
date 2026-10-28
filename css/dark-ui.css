@@ -94,8 +94,23 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #battle-scene::before { background: linear-gradient(180deg, transparent, rgba(255,255,255,.025)); }
 .battle-scale-note { margin: 5px 4px 0; color: var(--text-secondary); font-size: 11px; line-height: 1.4; }
 #battle-scene #enemy-side, #battle-scene #player-side { height: 50%; min-height: 0; }
-#battle-scene .pokemon-sprite { width: 285px; height: 100%; }
+#battle-scene .pokemon-sprite { position: relative; width: 285px; height: 100%; overflow: visible; }
 #battle-scene .pokemon-sprite img { width: auto; height: var(--sprite-height, 75%); max-width: 100%; max-height: 100%; object-fit: contain; }
+.shiny-entry-effect { position: absolute; inset: 8%; z-index: 2; pointer-events: none; }
+.shiny-entry-star { position: absolute; width: 39px; height: 39px; background: #fff8bd; clip-path: polygon(50% 0, 64% 36%, 100% 50%, 64% 64%, 50% 100%, 36% 64%, 0 50%, 36% 36%); filter: drop-shadow(0 0 5px #ffe45c) drop-shadow(0 0 3px #fff); opacity: 0; animation: shiny-entry-twinkle 850ms ease-out var(--star-delay) both; }
+.shiny-entry-star:nth-child(1) { left: 9%; top: 40%; --star-delay: 0ms; }
+.shiny-entry-star:nth-child(2) { left: 23%; top: 18%; --star-delay: 80ms; transform: scale(.72); }
+.shiny-entry-star:nth-child(3) { left: 46%; top: 9%; --star-delay: 160ms; transform: scale(.9); }
+.shiny-entry-star:nth-child(4) { left: 73%; top: 18%; --star-delay: 240ms; transform: scale(.68); }
+.shiny-entry-star:nth-child(5) { left: 85%; top: 44%; --star-delay: 320ms; transform: scale(.82); }
+.shiny-entry-star:nth-child(6) { left: 75%; top: 72%; --star-delay: 400ms; transform: scale(.7); }
+.shiny-entry-star:nth-child(7) { left: 48%; top: 82%; --star-delay: 480ms; transform: scale(.88); }
+.shiny-entry-star:nth-child(8) { left: 22%; top: 72%; --star-delay: 560ms; transform: scale(.74); }
+.shiny-entry-star:nth-child(9) { left: 55%; top: 47%; --star-delay: 640ms; transform: scale(.58); }
+.shiny-entry-orbit { position: absolute; left: 50%; top: 52%; width: 88%; height: 58%; border: 2px solid rgba(255, 231, 138, .9); border-left-color: transparent; border-right-color: transparent; border-radius: 50%; opacity: 0; filter: drop-shadow(0 0 5px #ffe680); transform: translate(-50%, -50%) rotate(-22deg) scale(.55); animation: shiny-entry-orbit 900ms ease-out 100ms both; }
+@keyframes shiny-entry-twinkle { 0% { opacity: 0; scale: .2; rotate: 0deg; } 22% { opacity: 1; } 72% { opacity: 1; } 100% { opacity: 0; scale: 1.25; rotate: 45deg; } }
+@keyframes shiny-entry-orbit { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(-22deg) scale(.45); } 30% { opacity: .9; } 100% { opacity: 0; transform: translate(-50%, -50%) rotate(18deg) scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .shiny-entry-star, .shiny-entry-orbit { animation-duration: 1ms; } }
 #enemy-hp-bar, #enemy-hp-bar.medium, #enemy-hp-bar.low { background: #e74c3c; }
 #enemy-side .pokemon-sprite { margin-right: 10%; }
 #player-side .pokemon-sprite { margin-left: 10%; }
@@ -177,8 +192,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .hunting-picker-markers { display: flex; justify-content: center; align-items: center; gap: 5px; min-height: 16px; }
 .tower-fainted { opacity: .6; }
 .tower-fainted-label { color: var(--warning); font-size: 11px; }
-#stat-sources-dialog, #team-detail-dialog, #team-recommend-dialog, #team-recommend-options, #team-replace-dialog, #team-appearance-dialog { width: min(600px, calc(100% - 24px)); max-height: min(80vh, 800px); margin: auto; padding: 18px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 20px 80px rgba(0,0,0,.7); }
-#stat-sources-dialog::backdrop, #team-detail-dialog::backdrop, #team-recommend-dialog::backdrop, #team-recommend-options::backdrop, #team-replace-dialog::backdrop, #team-appearance-dialog::backdrop { background: rgba(0,0,0,.75); }
+#stat-sources-dialog, #team-detail-dialog, #team-recommend-dialog, #team-recommend-options, #team-replace-dialog, #team-appearance-dialog, #deoxys-form-dialog { width: min(600px, calc(100% - 24px)); max-height: min(80vh, 800px); margin: auto; padding: 18px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 20px 80px rgba(0,0,0,.7); }
+#stat-sources-dialog::backdrop, #team-detail-dialog::backdrop, #team-recommend-dialog::backdrop, #team-recommend-options::backdrop, #team-replace-dialog::backdrop, #team-appearance-dialog::backdrop, #deoxys-form-dialog::backdrop { background: rgba(0,0,0,.75); }
 .stat-dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .stat-dialog-header h2 { font-size: 16px; }
 .stat-dialog-close { padding: 7px 10px; font-size: 14px; }
@@ -235,6 +250,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .team-appearance input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .team-appearance-card { display: flex; align-items: center; gap: 9px; min-height: 58px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-primary); transition: border-color .15s, background .15s; }
 .team-appearance-card img { width: 42px; height: 42px; flex: 0 0 42px; object-fit: contain; image-rendering: pixelated; }
+.deoxys-form-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.deoxys-form-options .team-appearance-card { min-height: 72px; }
+.deoxys-form-options .team-appearance-card img { width: 54px; height: 54px; flex-basis: 54px; }
+.deoxys-shiny-option { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--text-primary); font-size: 13px; }
+.deoxys-shiny-option input { accent-color: var(--accent); }
 .team-appearance-card strong, .team-appearance-card small { display: block; }
 .team-appearance-card strong { color: var(--text-primary); font-size: 12px; }
 .team-appearance-card small { margin-top: 3px; color: var(--text-secondary); font-size: 10px; }
@@ -298,6 +318,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .log-panel { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .log-panel + .log-panel { padding-left: 12px; border-left: 1px solid var(--border); }
 .log-panel-heading { flex: 0 0 auto; padding-bottom: 8px; margin-bottom: 8px; border-bottom: 1px solid var(--border); color: var(--accent-light); font-size: 11px; font-weight: 700; }
+.road-failure-status { grid-column: 1 / -1; min-width: 0; padding: 7px 34px 7px 10px; border: 1px solid rgba(255, 130, 100, .45); border-radius: 5px; background: rgba(120, 35, 28, .28); color: #ffb09c; font-size: 12px; font-weight: 700; line-height: 1.4; overflow-wrap: anywhere; position: relative; }
+.road-failure-count { flex: 0 0 auto; padding: 5px 8px; margin: 0 0 6px; border: 1px solid rgba(255, 130, 100, .3); border-radius: 4px; background: rgba(120, 35, 28, .18); color: #ffb09c; font-size: 11px; font-weight: 700; line-height: 1.4; }
+.road-failure-dismiss { position: absolute; top: 50%; right: 6px; width: 24px; height: 24px; transform: translateY(-50%); border: 0; border-radius: 4px; background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; }
+.road-failure-dismiss:hover { background: rgba(255, 176, 156, .15); }
+.road-failure-status[hidden] { display: none !important; }
+.road-failure-count[hidden] { display: none !important; }
 .log-messages { flex: 1; min-height: 0; overflow-y: auto; color: var(--text-secondary); font-size: 11px; text-align: left; line-height: 1.5; }
 #capture-messages:empty::before { content: '尚無捕獲紀錄'; display: block; padding: 10px; color: var(--text-secondary); }
 #battle-log .section-caption { padding-bottom: 10px; margin-bottom: 8px; border-bottom: 1px solid var(--border); }
@@ -329,7 +355,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .team-heading-actions .team-rate-info { flex-wrap: wrap; }
 #team-list .team-slot { position: relative; min-width: 0; height: 100%; padding: 7px; gap: 3px; }
 #team-list .slot-main-row { flex-wrap: wrap; align-items: center; padding-right: 74px; min-height: 40px; gap: 5px; }
+#team-list .slot-main-row.has-deoxys-actions { min-height: 48px; padding-right: 128px; }
 #team-list .slot-info { min-width: 0; overflow-wrap: anywhere; }
+#team-list .deoxys-form-label { display: inline-block; white-space: nowrap; }
 #team-list .team-slot-actions { position: absolute; top: 7px; right: 7px; gap: 3px; }
 #team-list .team-slot-actions button { padding: 3px 6px; }
 #team-list .team-slot-actions:empty { display: none; }
@@ -347,6 +375,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #team-list .slot-exp-bonus { margin-top: 4px; color: var(--text-secondary); font-size: 10px; line-height: 1.4; text-align: right; overflow-wrap: anywhere; }
 @media (max-width: 479px) {
     #team-list .slot-main-row { padding-right: 0; padding-top: 23px; }
+    #team-list .slot-main-row.has-deoxys-actions { padding-right: 128px; padding-top: 0; min-height: 48px; }
 }
 
 /* 設定控制中心 */
@@ -509,9 +538,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .route-level-range { display: inline-block; margin-top: 9px; padding: 4px 7px; border: 1px solid rgba(241,196,15,.25); border-radius: 4px; background: rgba(241,196,15,.07); }
 .route-pokemon-heading { display: flex; justify-content: space-between; gap: 8px; margin-top: 14px; color: var(--text-secondary); font-size: 10px; font-weight: 600; }
 .route-card .route-pokemon-preview { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 155px), 1fr)); gap: 6px; margin-top: 6px; }
-.route-pokemon-preview > .route-pokemon-entry { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); }
-.route-pokemon-preview .route-pokemon-name { min-width: 0; padding: 0; background: none; overflow-wrap: anywhere; line-height: 1.4; }
+.route-pokemon-preview > .route-pokemon-entry { display: flex; align-items: center; justify-content: space-between; gap: 6px; min-width: 0; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); cursor: help; }
+.route-pokemon-preview > .route-pokemon-entry:hover, .route-pokemon-preview > .route-pokemon-entry:focus-visible { border-color: var(--accent-light); background: var(--bg-card-hover); outline: none; }
+.route-pokemon-preview .route-pokemon-name { min-width: 0; padding: 0; background: none; overflow-wrap: anywhere; line-height: 1.4; cursor: help; text-decoration: underline dotted transparent; text-underline-offset: 3px; }
 .route-pokemon-preview .route-pokemon-chance { flex: 0 0 auto; padding: 0; background: none; color: var(--text-secondary); font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.route-pokemon-hover-card { position: fixed; z-index: 1000; display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 11px; width: min(270px, calc(100vw - 16px)); padding: 10px; border: 1px solid var(--accent-light); border-radius: 9px; background: var(--bg-secondary); color: var(--text-primary); box-shadow: 0 12px 32px rgba(0, 0, 0, .65), 0 0 14px rgba(77, 243, 220, .16); pointer-events: auto; }
+.route-pokemon-hover-card[hidden] { display: none !important; }
+.route-pokemon-hover-sprite { display: grid; width: 88px; height: 88px; place-items: center; border: 1px solid var(--border); border-radius: 7px; background: radial-gradient(circle, var(--bg-card-hover), var(--bg-primary) 75%); }
+.route-pokemon-hover-sprite img { width: 84px; height: 84px; object-fit: contain; image-rendering: pixelated; }
+.route-pokemon-hover-sprite.unknown::after { content: '?'; color: var(--text-secondary); font-size: 48px; font-weight: 700; }
+.route-pokemon-hover-info { min-width: 0; align-self: center; }
+.route-pokemon-hover-number { display: block; margin-bottom: 2px; color: var(--text-secondary); font-size: 10px; }
+.route-pokemon-hover-name { display: block; margin-bottom: 5px; font-size: 14px; }
+.route-pokemon-hover-types { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0 6px; }
+.route-pokemon-hover-status { display: block; color: var(--text-secondary); font-size: 10px; }
+.route-pokemon-hover-status.shiny { color: #ffe087; font-weight: 700; }
 @media (max-width: 700px) {
     .map-heading { padding: 12px 14px; }
     .map-heading h2 { font-size: 18px; }
@@ -582,8 +623,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     #settings-container .settings-section { padding: 16px; }
 }
 
-
-
 #skill-header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
 .skill-upgrade-all { min-height: 36px; padding: 8px 12px; border: 1px solid #a87527; border-radius: 5px; background: rgba(245, 166, 35, .14); color: #ffc96b; font-weight: 600; cursor: pointer; }
 .skill-upgrade-all:hover { background: rgba(245, 166, 35, .25); }
@@ -595,7 +634,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .skill-bulk-row strong { overflow-wrap: anywhere; color: var(--text-primary); }
 .skill-bulk-row span { color: var(--text-secondary); }
 .skill-bulk-row span:last-child { grid-column: 2 / -1; color: var(--accent-light); }
-
 
 /* 霓虹戰術：冷色掃描線、銳角卡片與桌面側邊導覽。 */
 [data-theme="neon"] #header { border-bottom-color: var(--accent); }
@@ -646,8 +684,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
     .brand-mark { width: 30px; height: 30px; flex-basis: 30px; }
     .brand-mark::before { top: 10px; }
     .brand-mark span { left: 7px; top: 7px; }
-
-.tab-label { font-size: 12px; }
+    .tab-label { font-size: 12px; }
     #battle-scene { height: 240px; }
     #battle-scene .pokemon-sprite { width: 202.5px; flex-shrink: 1; }
     #enemy-side .pokemon-sprite { margin-right: 2%; }

@@ -20,12 +20,23 @@ const EVOLUTION_REGION_RANGES = [
     [494, 649, 'unova'], [650, 721, 'kalos'], [722, 809, 'alola'],
     [810, 905, 'galar'], [906, 1025, 'paldea'], [1026, 1073, 'mega'],
 ];
+const DEOXYS_FORM_BASE_STATS = {
+    normal: { hp: 50, atk: 150, def: 50, spAtk: 150, spDef: 50, speed: 150 },
+    attack: { hp: 50, atk: 180, def: 20, spAtk: 180, spDef: 20, speed: 150 },
+    defense: { hp: 50, atk: 70, def: 160, spAtk: 70, spDef: 160, speed: 90 },
+    speed: { hp: 50, atk: 95, def: 90, spAtk: 95, spDef: 90, speed: 180 },
+};
 
 class GameCore {
     constructor() {
         this.gameState = null;
         this.battleTimer = null;
         this.autoSaveTimer = null;
+        this._berryGrowthLastAt = Date.now();
+        this._berryGrowthActive = document.visibilityState !== 'hidden';
+        this._hiddenAt = this._berryGrowthActive ? null : this._berryGrowthLastAt;
+        this._hiddenHuntingLive = false;
+        this._playTimeStartedAt = null;
         this.onBattleEvent = null; // UI回撥
         this.onCatch = null;
         this.onLevelUp = null;
@@ -142,33 +153,62 @@ class GameCore {
     _onPageHidden() {
         // 記錄進入後臺的時間
         this._hiddenAt = Date.now();
+        this._syncBerryGrowth(this._hiddenAt);
+        this._berryGrowthActive = false;
+        this._hiddenWasHealing = !!this.healTimer;
         this._hiddenHuntingLive = this.gameState?.currentRoute === 'free_hunting' && !this._towerMode;
-        if (!this._hiddenHuntingLive && !this._towerMode) {
-            this._hiddenWasHealing = !!this.healTimer;
+        if (this._hiddenHuntingLive) {
+            if (this.battleTimer) this.startBattleLoop();
+            if (this.healTimer) {
+                clearInterval(this.healTimer);
+                this.healTimer = null;
+                this.startHealingAfterDefeat();
+            }
+        } else {
             this.stopBattle();
         }
+        this._updatePlayTime(this._hiddenAt, true);
+        this._playTimeStartedAt = null;
     }
 
     _onPageVisible() {
         if (!this._hiddenAt) return;
         const now = Date.now();
+        this._syncBerryGrowth(now);
+        this._berryGrowthActive = true;
         let elapsed = now - this._hiddenAt;
         this._hiddenAt = null;
+        this._playTimeStartedAt = now;
 
-        // 狩獵場在背景即時戰鬥，返回時不可重複做離線結算。
+        // 自由狩獵場在背景即時戰鬥，不再把這段時間當作離線模擬。
         if (this._hiddenHuntingLive) {
             this._hiddenHuntingLive = false;
-            if (!this.battleTimer && !this.healTimer && !this._nextBattleTimeout) {
+            if (this.gameState?.stats) this.gameState.stats.playTime = (this.gameState.stats.playTime || 0) + Math.max(0, elapsed);
+            this._hiddenWasHealing = false;
+            if (this.battleTimer) this.startBattleLoop();
+            else if (this.healTimer) {
+                clearInterval(this.healTimer);
+                this.healTimer = null;
+                this.startHealingAfterDefeat();
+            } else if (!this._nextBattleTimeout) {
                 if (this.currentBattle?.wildCurrentHp > 0 && this.currentBattle?.playerCurrentHp > 0) this.startBattleLoop();
                 else this.startBattle();
             }
             return;
         }
 
-        // 對戰塔使用即時戰鬥，不套用一般野外離線模擬。
-        if (this._towerMode) return;
+        // 挑戰塔不進行離線模擬；返回時繼續尚未結束的戰鬥。
+        if (this._towerMode) {
+            if (this.currentBattle?.wildCurrentHp > 0) {
+                this.currentBattle.lastTick = now;
+                this.startBattleLoop();
+            } else {
+                this.startTowerBattle();
+            }
+            this._hiddenWasHealing = false;
+            return;
+        }
         if (this._offlineSimState) return;
-
 
         // 如果後臺時間超過2秒，進行離線戰鬥結算
         if (elapsed > 2000) {
@@ -180,6 +220,7 @@ class GameCore {
             return; // 非同步模擬，不在這裡重啟戰鬥
         }
 
+        if (this.gameState?.stats) this.gameState.stats.playTime = (this.gameState.stats.playTime || 0) + Math.max(0, elapsed);
         if (this._hiddenWasHealing && this.currentBattle) {
             this._processOfflineBattles(elapsed, elapsed, elapsed);
             return;
@@ -208,6 +249,9 @@ class GameCore {
         if (!offlineRoute) return;
 
         const state = this.gameState;
+        this._updatePlayTime();
+        state.stats.playTime = (state.stats.playTime || 0) + elapsedMs;
+        state.stats.offlinePlayTime = (state.stats.offlinePlayTime || 0) + elapsedMs;
         this._offlineReportStart = {
             elapsedMs: actualElapsedMs, creditedMs: elapsedMs, maxOfflineMs,
             route: offlineRoute.id, team: [...state.team],
@@ -682,10 +726,12 @@ class GameCore {
         const initialIvs = this.generateIVs();
 
         this.gameState = {
+            pokemonForms: {},
             team: [],               // 隊伍（最多6只）- 只儲存 pokemonId
             activePokemonIndex: 0,  // 出戰寶可夢在隊伍中的索引
             currentRegion: 'kanto',
             currentRoute: 'kanto_route1',
+            routeBattleFailureStreak: 0,
             highestVisitedRoute: 'kanto_route1',
             pokedex: {},            // { pokemonId: 'seen' | 'caught' }
             caughtPokemon: {},      // { pokemonId: { ivs, level, exp } } - 按寶可夢自身ID儲存
@@ -700,6 +746,7 @@ class GameCore {
                 totalExp: 0,
                 totalGold: 0,
                 playTime: 0,
+                offlinePlayTime: 0,
             },
             settings: {},
             // 樹果系統
@@ -719,6 +766,7 @@ class GameCore {
             lastSave: Date.now(),
         };
 
+        this._playTimeStartedAt = Date.now();
         // 捕獲初始皮卡丘（進化鏈基礎ID是25）
         this.catchPokemonWithIvs(25, 5, initialIvs);
         // 將皮卡丘加入隊伍
@@ -741,9 +789,11 @@ class GameCore {
     }
 
     generateWildIVs() {
-        return this.generateIVs();
+        const ivs = this.generateIVs();
+        return ivs;
     }
 
+    // 獲取寶可夢的進化鏈基礎ID（用於共享個體值）
     getBasePokemonId(pokemonId) {
         // 透過快取遞迴查詢最基礎的形態
         const parentId = this._baseIdCache[pokemonId];
@@ -863,6 +913,7 @@ class GameCore {
             exp: getExpForLevel(baseData.expGroup, level),
             ivs: { ...storedData.ivs },
             isShiny: !!this.gameState.shinyDex[pokemonId], // 閃光圖鑑中有記錄則為閃光寶可夢
+            form: Number(pokemonId) === 386 ? this.gameState.pokemonForms?.[pokemonId] || 'normal' : 'normal',
         };
 
         // 計算當前屬性
@@ -880,7 +931,7 @@ class GameCore {
         shiny *= 1 + this.getTalentValue('shiny_bonus') / 100;
         shiny *= 1 + this.getTowerBonus() / 100;
         const factor = this.gameState?.currentRoute === 'free_hunting' && !this._towerMode ? 0.7 : 1;
-        return { shiny: Math.min(1, shiny) * factor, iv31: factor / 32 };
+        return { shiny: Math.min(1, shiny) * factor, iv31: (1 / 32) * factor };
     }
 
     reduceHuntingIVs(ivs) {
@@ -980,7 +1031,9 @@ class GameCore {
     }
 
     calculateBaseStats(pokemon) {
-        const baseRaw = POKEMON_DATA[pokemon.id].baseStats;
+        const baseRaw = Number(pokemon.id) === 386
+            ? DEOXYS_FORM_BASE_STATS[pokemon.form] || DEOXYS_FORM_BASE_STATS.normal
+            : POKEMON_DATA[pokemon.id].baseStats;
         const level = pokemon.level;
         const ivs = pokemon.ivs;
 
@@ -1004,7 +1057,10 @@ class GameCore {
 
     // 獲取含加成的種族值（閃光+樹果），用於圖鑑展示
     getEffectiveBaseStats(pokemonId) {
-        const baseRaw = POKEMON_DATA[pokemonId]?.baseStats;
+        const form = Number(pokemonId) === 386 ? this.gameState.pokemonForms?.[pokemonId] || 'normal' : null;
+        const baseRaw = Number(pokemonId) === 386
+            ? DEOXYS_FORM_BASE_STATS[form] || DEOXYS_FORM_BASE_STATS.normal
+            : POKEMON_DATA[pokemonId]?.baseStats;
         if (!baseRaw) return null;
         return this._getEffectiveBaseStats(baseRaw, this.getBerryBonuses(pokemonId), !!this.gameState.shinyDex[pokemonId]);
     }
@@ -1328,6 +1384,8 @@ class GameCore {
     // 勝利結算公共方法：經驗/金幣/回血/捕獲/閃光/自動切地圖
     // 返回 { expGained, goldGained, healAmount, autoSwitchResult }
     _processVictoryRewards(wildPokemon, activePokemonId, playerMaxHp, playerCurrentHp) {
+        this.gameState.routeBattleFailureStreak = 0;
+        if (this.onBattleEvent) this.onBattleEvent('routeBattleSuccess', {});
         this.gameState.stats.totalBattles++;
 
         // 圖鑑標記
@@ -1829,7 +1887,9 @@ class GameCore {
 
     startBattleLoop() {
         this._stopBattleTimer();
-
+        // 網頁若一開始就在背景開啟，載入狩獵場後也要啟動即時戰鬥。
+        if (!this._berryGrowthActive && this.gameState?.currentRoute === 'free_hunting' && !this._towerMode) this._hiddenHuntingLive = true;
+        if (!this._berryGrowthActive && !this._hiddenHuntingLive) return;
         if (this._useWorkerTimer) {
             const cb = () => { this.battleTick(); };
             this.battleTimer = this._workerSetInterval(cb, 50);
@@ -1899,7 +1959,7 @@ class GameCore {
                 this.save();
                 this.startBattle();
             }
-        }, 1000); // 每遊戲秒回覆一次
+        }, 1000); // 每秒回覆一次
     }
 
     battleTick() {
@@ -2013,10 +2073,10 @@ class GameCore {
                     } else {
                         if (this.onBattleEvent) {
                             this.onBattleEvent('playerFainted', {});
-                        }
-                        this.stopBattle();
-                        // 開始逐步回覆生命值
-                        this.startHealingAfterDefeat();
+                }
+                this.stopBattle();
+                // 一般道路連敗達門檻時退路；否則照常回復生命並重試。
+                if (!this._recordRoadBattleFailure()) this.startHealingAfterDefeat();
                     }
                     return;
                 }
@@ -2083,7 +2143,7 @@ class GameCore {
 
         // 計算下一場戰鬥的延遲：當攻擊速度<800ms時，延遲=攻擊速度
         const attackInterval = this.getAttackInterval(battle.playerStats.speed);
-        const delay = (attackInterval < 800 ? attackInterval : 800);
+        const delay = attackInterval < 800 ? attackInterval : 800;
 
         // 短暫延遲後開始下一場戰鬥（記錄計劃時間，頁面切回時可補償）
         this._nextBattleScheduledAt = Date.now() + delay;
@@ -2114,6 +2174,55 @@ class GameCore {
 
     getHighestTeamLevel() {
         return this.gameState.team.reduce((highest, id) => Math.max(highest, this.getStoredData(id)?.level || 1), 1);
+    }
+
+    // 一般道路連敗達10次時退回前一條已解鎖道路；免費狩獵與挑戰塔不適用。
+    _recordRoadBattleFailure() {
+        if (!this.gameState || this._towerMode || this._offlineSimState || this.gameState.currentRoute === 'free_hunting') return false;
+        this.gameState.routeBattleFailureStreak = (Number(this.gameState.routeBattleFailureStreak) || 0) + 1;
+        if (this.onBattleEvent) this.onBattleEvent('routeBattleFailure', { failures: this.gameState.routeBattleFailureStreak });
+        if (this.gameState.routeBattleFailureStreak < 10) {
+            this.save();
+            return false;
+        }
+
+        const fromRouteId = this.gameState.currentRoute;
+        const fromRoute = this.getRoute(fromRouteId);
+        this.gameState.routeBattleFailureStreak = 0;
+        const routes = Object.entries(REGIONS).flatMap(([regionKey, region]) =>
+            (region.routes || []).map(route => ({ ...route, regionKey, regionName: region.name }))
+        );
+        const currentIndex = routes.findIndex(route => route.id === fromRouteId);
+        let previous = null;
+        for (let i = currentIndex - 1; i >= 0; i--) {
+            const candidate = routes[i];
+            if (!candidate.pokemon?.length || !this.isRegionUnlocked(candidate.regionKey)) continue;
+            previous = candidate;
+            break;
+        }
+
+        if (!previous) {
+            this.save();
+            if (this.onBattleEvent) this.onBattleEvent('routeFailureNoPrevious', { failures: 10, routeName: fromRoute?.name || fromRouteId });
+            return false;
+        }
+
+        this.gameState.settings = this.gameState.settings || {};
+        this.gameState.settings.autoRouteSwitch = false;
+        if (!this.changeRoute(previous.id)) {
+            this.save();
+            return false;
+        }
+        if (this.onBattleEvent) {
+            this.onBattleEvent('routeFailureRetreat', {
+                failures: 10,
+                fromRouteName: fromRoute?.name || fromRouteId,
+                routeName: previous.name,
+                regionName: previous.regionName,
+                autoRouteSwitchDisabled: true,
+            });
+        }
+        return true;
     }
 
     // 相對最高等級落後越多，加成越高；最高額外 75%，只套用於隊伍。
@@ -2852,6 +2961,7 @@ class GameCore {
             if (!this.getHuntingRoute()) return false;
             this.recordHighestVisitedRoute();
             this.stopBattle();
+            this.gameState.routeBattleFailureStreak = 0;
             this.gameState.currentRegion = 'hunting';
             this.gameState.currentRoute = routeId;
             this.gameState.currentEnemy = null;
@@ -2866,6 +2976,7 @@ class GameCore {
         if (!regionKey || !this.isRegionUnlocked(regionKey)) return false;
         if (this.gameState.currentRoute === routeId) return true;
         this.stopBattle();
+        this.gameState.routeBattleFailureStreak = 0;
         this.gameState.currentRoute = routeId;
         this.recordHighestVisitedRoute(routeId);
         this.gameState.currentEnemy = null;
@@ -2877,8 +2988,8 @@ class GameCore {
         return true;
     }
 
-    // 檢查某個道路的所有寶可夢是否全部6V且閃光
-    isRouteComplete6VShiny(routeId) {
+// 檢查某個道路的所有寶可夢是否全部6V且閃光
+isRouteComplete6VShiny(routeId) {
         const route = this.getRoute(routeId);
         if (!route || !route.pokemon || route.pokemon.length === 0) return false;
 
@@ -2893,10 +3004,17 @@ class GameCore {
             if (!this.gameState.shinyDex[p.id]) return false;
         }
         return true;
-    }
+}
 
-    // 檢查某個道路的所有寶可夢是否全部6V（不要求閃光）
-    isRouteComplete6V(routeId) {
+// 檢查某條道路出現的寶可夢是否都已捕獲。
+isRouteCaught(routeId) {
+    const route = this.getRoute(routeId);
+    if (!route?.pokemon?.length) return false;
+    return route.pokemon.every(pokemon => this.gameState.pokedex[pokemon.id] === 'caught');
+}
+
+// 檢查某個道路的所有寶可夢是否全部6V（不要求閃光）
+isRouteComplete6V(routeId) {
         const route = this.getRoute(routeId);
         if (!route || !route.pokemon || route.pokemon.length === 0) return false;
 
@@ -2913,11 +3031,12 @@ class GameCore {
     }
 
     // 根據設定檢查道路是否完成（自動切換地圖用）
-    _isRouteCompleteByCondition(routeId) {
-        const condition = this.gameState.settings?.routeSwitchCondition || '6v_shiny';
-        if (condition === '6v_only') return this.isRouteComplete6V(routeId);
-        return this.isRouteComplete6VShiny(routeId);
-    }
+_isRouteCompleteByCondition(routeId) {
+    const condition = this.gameState.settings?.routeSwitchCondition || '6v_shiny';
+    if (condition === '6v_only') return this.isRouteComplete6V(routeId);
+    if (condition === 'region_caught') return this.isRouteCaught(routeId);
+    return this.isRouteComplete6VShiny(routeId);
+}
 
     // 查詢第一個未完成的已解鎖道路（依地圖順序）。
     findNextIncompleteRoute() {
@@ -3011,6 +3130,11 @@ class GameCore {
         return true;
     }
 
+    // 樹果依實際時間生長；同步最近檢查時間。
+    _syncBerryGrowth(now = Date.now()) {
+        this._berryGrowthLastAt = now;
+    }
+
     // 隊員技能重置後只檢查一次；挑戰或離線結算期間延後至主線重啟。
     _queueSkillRouteCheck() {
         this.gameState.pendingSkillRouteCheck = true;
@@ -3070,16 +3194,16 @@ class GameCore {
         return true;
     }
 
-    // 自動切換到下一個未完成的地圖（無需徽章，直接開放）
-    tryAutoRouteSwitch() {
+// 自動切換到下一個未完成的地圖（無需徽章，直接開放）
+tryAutoRouteSwitch() {
         if (this._isOfflineSimulating) return null;
         if (this.gameState?.currentRoute === 'free_hunting') return null;
         if (!this.gameState.settings?.autoRouteSwitch) return null;
         if (!this.gameState.currentRoute) return null;
 
-        let next;
-        let recoveryRoute = this.gameState.skillRecoveryRoute;
-        if (recoveryRoute) {
+    let next;
+    let recoveryRoute = this.gameState.skillRecoveryRoute;
+    if (recoveryRoute) {
             if (!this.findNextIncompleteRoute()) {
                 delete this.gameState.skillRecoveryRoute;
                 this.save();
@@ -3134,7 +3258,7 @@ class GameCore {
             }
             if (!next && beyondProgress) next = easiest;
             if (!next) return null;
-        } else {
+    } else {
             // 平常依完成條件與原有地圖順序切換。
             if (!this._isRouteCompleteByCondition(this.gameState.currentRoute)) return null;
             next = this.findNextIncompleteRoute();
@@ -3267,8 +3391,18 @@ class GameCore {
     }
 
     // ===================== 存檔 =====================
+    _updatePlayTime(now = Date.now(), includeHiddenTransition = false) {
+        if (!this.gameState?.stats) return;
+        if (this._playTimeStartedAt !== null && !this._isOfflineSimulating && (document.visibilityState !== 'hidden' || includeHiddenTransition)) {
+            this.gameState.stats.playTime = (this.gameState.stats.playTime || 0) + Math.max(0, now - this._playTimeStartedAt);
+        }
+        this._playTimeStartedAt = document.visibilityState === 'hidden' ? null : now;
+    }
+
     save() {
         if (!this.gameState) return;
+        this._syncBerryGrowth();
+        this._updatePlayTime();
         this.gameState.lastSave = Date.now();
 
         // 儲存當前戰鬥狀態（重新整理頁面後恢復）
@@ -3375,6 +3509,8 @@ class GameCore {
             this.gameState = parsed;
             this.repairHuntingLocation();
             this.recordHighestVisitedRoute();
+            this._berryGrowthLastAt = Date.now();
+            this._playTimeStartedAt = Date.now();
             // 遷移修復：舊版 generateUID 批次購買時產生重複uid
             this._migrateFixGemUids();
             this._reconcileCompletedBadges();
@@ -3492,6 +3628,9 @@ class GameCore {
                 this.gameState.tower.currentEnemyIndex = 0;
             }
             this.repairHuntingLocation();
+            this._berryGrowthLastAt = Date.now();
+            this.gameState.stats = this.gameState.stats || {};
+            this._playTimeStartedAt = Date.now();
             // 遷移修復：寶石重複uid（舊generateUID方案批次購買時碰撞）
             this._migrateFixGemUids();
             this._reconcileCompletedBadges();
@@ -4541,6 +4680,7 @@ class GameCore {
 
     // 檢查某個種植槽是否成熟
     isBerryRipe(plotIndex) {
+        this._syncBerryGrowth();
         const plot = this.gameState.berryPlots[plotIndex];
         if (!plot) return false;
         return (Date.now() - plot.plantedAt) >= this.getEffectiveBerryGrowTime();
@@ -4548,10 +4688,12 @@ class GameCore {
 
     // 獲取種植槽剩餘時間（毫秒）
     getBerryTimeLeft(plotIndex) {
+        this._syncBerryGrowth();
         const plot = this.gameState.berryPlots[plotIndex];
         if (!plot) return 0;
         const elapsed = Date.now() - plot.plantedAt;
-        return Math.max(0, this.getEffectiveBerryGrowTime() - elapsed);
+        const remaining = Math.max(0, this.getEffectiveBerryGrowTime() - elapsed);
+        return Math.ceil(remaining);
     }
 
     // 採摘樹果（收穫到揹包）
@@ -4908,7 +5050,7 @@ class GameCore {
 
         // 短暫延遲後開始下一隻
         setTimeout(() => {
-            if (this._towerMode) {
+            if (this._towerMode && this._berryGrowthActive) {
                 this.startTowerBattle();
             }
         }, 800);
@@ -4951,7 +5093,6 @@ class GameCore {
         this._towerPlayerHpPercent = 1;
         this.gameState.tower.inBattle = false;
         this.gameState.tower.currentEnemyIndex = 0;
-
         this._restoreTowerReplay();
 
         this.save();

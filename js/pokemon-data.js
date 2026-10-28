@@ -1228,6 +1228,11 @@ function getShinyPokemonSpriteUrl(id) {
     return `sprites/animated-square/shiny/${id}.gif`;
 }
 
+function getDeoxysSpriteUrl(form = 'normal', shiny = false) {
+    const safeForm = ['normal', 'attack', 'defense', 'speed'].includes(form) ? form : 'normal';
+    return `sprites/animated/deoxys/${shiny ? 'shiny' : 'normal'}/${safeForm}.gif`;
+}
+
 function getLocalPokemonSpriteUrl(id, shiny = false) {
     return `sprites/pokemon/${shiny ? 'shiny/' : ''}${id}.png`;
 }

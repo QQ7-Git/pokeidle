@@ -7,9 +7,19 @@ let game;
 let gameUI;
 
 window.addEventListener('DOMContentLoaded', () => {
-    // 初始化遊戲核心
-    game = new GameCore();
+    // 清除舊版本機測試面板留下的覆寫設定。
+    try {
+        localStorage.removeItem('pokemon_idle_custom_speed');
+        localStorage.removeItem('pokemon_idle_exp_multiplier');
+        localStorage.removeItem('pokemon_idle_custom_rate_bonuses');
+    } catch (e) {
+        console.warn('無法清除舊版測試設定:', e);
+    }
 
+// 初始化遊戲核心
+game = new GameCore();
+
+    // 倍速隻影響線上戰鬥，單獨儲存以免改變遊戲存檔格式。
     let loaded = false;
     try {
         loaded = game.load();
