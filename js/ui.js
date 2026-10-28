@@ -1119,7 +1119,7 @@ class GameUI {
                         ${!isActive ? `<button onclick="gameUI.setActive(${index})" ${towerFainted ? 'disabled' : ''}>出戰</button>` : ''}
                         ${!isActive && !this.game._towerMode && this.game.gameState.team.length > 1 ? `<button class="remove-btn" onclick="gameUI.removeFromTeam(${index})">移除</button>` : ''}
                         </div>
-                ${Number(pokemonId) === 386 && !this.game._towerMode ? `<button class="deoxys-form-team-btn" onclick="gameUI.showDeoxysFormDialog(386, 'edit')">型態</button>` : ''}
+                ${Number(pokemonId) === 386 && !this.game._towerMode ? '<button type="button" class="deoxys-form-team-btn">型態</button>' : ''}
                     </div>
                 </div>
                 <div class="team-stats-wrapper">
@@ -1169,7 +1169,12 @@ class GameUI {
             formLabel.textContent = `${formNames[pokemon.form] || '普通'}形態`;
                 slot.querySelector('.slot-name')?.appendChild(formLabel);
             }
-            slot.querySelector('.team-skill-upgrade')?.addEventListener('click', event => {
+        slot.querySelector('.deoxys-form-team-btn')?.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopPropagation();
+            this.showDeoxysFormDialog(386, 'edit');
+        });
+        slot.querySelector('.team-skill-upgrade')?.addEventListener('click', event => {
                 event.stopPropagation();
                 this.confirmSkillUpgrade(pokemonId);
             });
