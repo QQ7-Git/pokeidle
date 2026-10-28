@@ -1817,7 +1817,7 @@ const REGIONS = {
                     { id: 601, weight: 10, levelRange: [1691, 1715] },  // 齒輪怪
                     { id: 628, weight: 8, levelRange: [1691, 1715] },   // 勇士雄鷹
                     { id: 494, weight: 2, levelRange: [1715, 1715] },   // 比克提尼（幻之寶可夢）
-                    { id: 649, weight: 1, levelRange: [1664, 1665] },   // 蓋諾賽克特（幻之寶可夢）
+                    { id: 649, weight: 1, levelRange: [1714, 1715] },   // 蓋諾賽克特（幻之寶可夢）
                 ]
             },
         ]
@@ -2568,8 +2568,8 @@ const REGIONS = {
                     { id: 886, weight: 12, levelRange: [5801, 6000] },  // 多龍奇
                     { id: 891, weight: 12, levelRange: [5801, 6000] },  // 熊徒弟
                     { id: 887, weight: 10, levelRange: [5801, 6000] },  // 多龍巴魯託
-                    { id: 894, weight: 10, levelRange: [6001, 6200] },  // 雷吉艾勒奇
-                    { id: 895, weight: 8, levelRange: [6001, 6200] },   // 雷吉鐸拉戈
+                    { id: 894, weight: 10, levelRange: [5999, 6000] },  // 雷吉艾勒奇
+                    { id: 895, weight: 8, levelRange: [5999, 6000] },   // 雷吉鐸拉戈
                 ]
             },
             {
@@ -2582,7 +2582,7 @@ const REGIONS = {
                     { id: 893, weight: 15, levelRange: [6001, 6200] },  // 薩戮德
                     { id: 896, weight: 10, levelRange: [6001, 6200] },  // 雪暴馬
                     { id: 897, weight: 8, levelRange: [6150, 6200] },   // 靈幽馬
-                    { id: 889, weight: 3, levelRange: [5900, 6000] },   // 藏瑪然特
+                    { id: 889, weight: 3, levelRange: [6199, 6200] },   // 藏瑪然特
                     
                 ]
             },
@@ -2597,7 +2597,7 @@ const REGIONS = {
                     { id: 902, weight: 12, levelRange: [6201, 6400] },  // 幽尾玄魚
                     { id: 903, weight: 12, levelRange: [6201, 6400] },  // 大狃拉
                     { id: 904, weight: 12, levelRange: [6201, 6400] },  // 萬針魚
-                    { id: 888, weight: 3, levelRange: [5900, 6000] },   // 蒼響
+                    { id: 888, weight: 3, levelRange: [6399, 6400] },   // 蒼響
                 ]
             },
             {
@@ -2609,8 +2609,8 @@ const REGIONS = {
                     { id: 901, weight: 20, levelRange: [6401, 6600] },  // 月月熊
                     { id: 902, weight: 20, levelRange: [6401, 6600] },  // 幽尾玄魚
                     { id: 905, weight: 10, levelRange: [6550, 6600] },   // 眷戀雲
-                    { id: 898, weight: 5, levelRange: [6170, 6200] },   // 蕾冠王
-                    { id: 890, weight: 1, levelRange: [5950, 6000] },   // 無極汰那
+                    { id: 898, weight: 5, levelRange: [6599, 6600] },   // 蕾冠王
+                    { id: 890, weight: 1, levelRange: [6599, 6600] },   // 無極汰那
                 ]
             },
         ]
