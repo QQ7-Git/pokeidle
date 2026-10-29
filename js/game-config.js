@@ -122,8 +122,19 @@ const BERRY_DATA = {
 const BERRY_SEED_PRICE = 50000;      // 種子價格（金幣）
 const BERRY_PLOT_MAX = 10;           // 最大種植空地
 const BERRY_GROW_TIME = 5 * 60 * 60 * 1000; // 5小時成熟（毫秒）
-const BERRY_STAT_BONUS = 5;          // 每個樹果增加種族值基礎數值+5
-const BERRY_STAT_CAP = 255;          // 每隻寶可夢單獨種族值上限255
+const BERRY_MAX_PER_TYPE = 20;       // 每種樹果每隻寶可夢最多餵食數量
+const BERRY_MAX_STAT_MULTIPLIER = 2; // 每種餵滿後對應種族值加倍
+const BERRY_SYSTEM_VERSION = 2;      // 樹果計算規則版本
+const LEGACY_BERRY_STAT_BONUS = 5;   // 舊規則每顆樹果增加的種族值（存檔遷移用）
+const LEGACY_BERRY_STAT_CAP = 255;   // 舊規則玩家樹果上限（存檔遷移用）
+const TOWER_ENEMY_STAT_CAP = 255;    // 挑戰塔敵人的種族值封頂
+const POKEDEX_BONUS_PER_CAUGHT = 0.00075; // 每個已捕獲圖鑑項目提供0.075%自身能力加成
+const POKEDEX_COMPLETE_BONUS = 0.05;      // 完成全部圖鑑額外加成
+const POKEDEX_ALL_SIX_IV_BONUS = 0.05;    // 全圖鑑達6V額外加成
+const POKEDEX_ALL_SHINY_BONUS = 0.05;     // 全圖鑑閃光額外加成
+const POKEDEX_ALL_SIX_IV_SHINY_BONUS = 0.10; // 全圖鑑6V且閃光額外加成
+const POKEDEX_STAT_MILESTONES = [100, 250, 500, 750, 1000];
+const POKEDEX_STAT_MILESTONE_BONUS = 5;   // 每達成一個捕獲里程碑，六項基礎種族值各+5
 
 // ===================== 技能系統配置 =====================
 const SKILL_LEVEL_REQUIREMENT = 1000; // 升級技能所需最低等級
@@ -432,8 +443,25 @@ const TALENT_CATEGORIES = {
 // ===================== 挑戰塔配置 =====================
 const TOWER_MAX_FLOOR = 255;            // 最高層數
 const TOWER_ENEMIES_PER_FLOOR = 6;      // 每層敵人數量
-const TOWER_BASE_LEVEL = 18000;         // 第1層怪物等級
-const TOWER_LEVEL_INCREMENT = 1000;      // 每層等級遞增
+const TOWER_LEVEL_STEPS = [
+    { floor: 1, level: 8000 },
+    { floor: 100, level: 8500 },
+    { floor: 150, level: 8600 },
+    { floor: 200, level: 9200 },
+    { floor: 240, level: 9300 },
+    { floor: 241, level: 9400 },
+    { floor: 255, level: 9500 },
+];
+const TOWER_BONUS_FACTOR_STEPS = [
+    { floor: 1, pokedex: 1.00, talent: 1.00, gem: 1.00 },
+    { floor: 100, pokedex: 0.95, talent: 0.90, gem: 0.90 },
+    { floor: 150, pokedex: 0.92, talent: 0.87, gem: 0.87 },
+    { floor: 200, pokedex: 0.89, talent: 0.84, gem: 0.84 },
+    { floor: 240, pokedex: 0.86, talent: 0.81, gem: 0.81 },
+    { floor: 255, pokedex: 0.86, talent: 0.81, gem: 0.81 },
+];
+const TOWER_NO_TYPE_ADVANTAGE_FLOOR = 241;
+const TOWER_NO_ADVANTAGE_DAMAGE_FACTOR = 0.8;
 const TOWER_MIN_BASE_STAT_TOTAL = 500;  // 候選怪物種族值總和下限
 
 // ===================== 離線模擬配置 =====================

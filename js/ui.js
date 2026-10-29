@@ -2,6 +2,10 @@
 // UI 管理 - 介面渲染和互動
 // ============================================================
 
+function formatPokemonFormDisplayName(name) {
+    return String(name || '').replace(/(?:形態|型態|屬性)$/, '');
+}
+
 class GameUI {
     constructor(game) {
         this.game = game;
@@ -371,6 +375,7 @@ class GameUI {
         this.game.onCatch = (pokemon) => {
             this.showCatchNotification(pokemon);
             if (this.currentTab === 'tab-map') this.renderMap({ preserveView: true });
+            this._refreshPokedexRewardProgressIfVisible();
         };
         this.game.onLevelUp = (pokemon) => this.showLevelUpNotification(pokemon);
 
@@ -488,6 +493,7 @@ class GameUI {
         switch (event) {
             case 'start':
                 this.renderBattleStart(data);
+                if (this.game.gameState.team.includes(1024)) this.renderTeam();
                 break;
             case 'playerAttack':
                 this.onPlayerAttack(data);
@@ -510,6 +516,11 @@ class GameUI {
                 break;
             case 'routeBattleSuccess':
                 this.updateRoadFailureStatus(0);
+                break;
+            case 'terapagosEnergyChanged':
+                this.renderTeam();
+                this.updateTerapagosBattleEnergy();
+                if (data.wins >= data.maximum) this.showToast('太樂巴戈斯的星晶能量已充滿！下一次出戰時將自動星晶化。');
                 break;
             case 'routeFailureRetreat':
                 this.updateRoadRetreatStatus(`戰鬥失敗過多，已退回 ${data.regionName} · ${data.routeName}；自動切圖已關閉，需自行開啟`);
@@ -535,17 +546,21 @@ class GameUI {
                 break;
             case 'evolved':
                 this.showEvolutionNotification(data);
+                this._refreshPokedexRewardProgressIfVisible();
                 break;
             case 'shinyEvolved':
                 this.addBattleLog(`✨ ${data.oldName} 的閃光形態傳遞給了 ${data.newName}！`, 'shiny');
                 this.showToast(`✨ ${data.newName} 獲得了閃光形態！`);
+                this._refreshPokedexRewardProgressIfVisible();
                 break;
             case 'shinySpread':
                 this.addBattleLog(`✨ ${data.sourceName} 的閃光傳播給了 ${data.targetName}！`, 'shiny');
+                this._refreshPokedexRewardProgressIfVisible();
                 break;
             case 'shinyDefeated':
                 this.addBattleLog(`✨ 獲得了 ${data.name} 的閃光形態！可在圖鑑中切換展示`, 'shiny', 'capture');
                 this.showToast(`✨ 恭喜！獲得了 ${data.name} 的閃光形態！`);
+                this._refreshPokedexRewardProgressIfVisible();
                 break;
             case 'badgeUnlocked':
                 this.addBattleLog(`🏅 恭喜！獲得了 ${data.badgeName}！`, 'evolution');
@@ -643,6 +658,7 @@ class GameUI {
                 break;
             case 'offlineEnd':
                 this._hideOfflineOverlay(data.battles, data.totalMs, data.report);
+                if (this.game.gameState.team.includes(1024)) this.renderTeam();
                 break;
             case 'autoSwitched': {
                 const pokemonId = this.game.gameState.team[data.newIndex];
@@ -664,6 +680,20 @@ class GameUI {
         }
     }
 
+    getTerapagosEnergyHtml(className = 'terapagos-energy', id = '') {
+        const wins = Math.max(0, Math.min(5, Number(this.game.gameState.terapagosStellarWins) || 0));
+        return `<div${id ? ` id="${id}"` : ''} class="${className}" role="progressbar" aria-label="星晶能量" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${wins}"><span>星晶能量</span><div class="terapagos-energy-track"><i style="width:${wins * 20}%"></i></div><strong>${wins}/5</strong></div>`;
+    }
+
+    updateTerapagosBattleEnergy() {
+        const energy = document.getElementById('player-terapagos-energy');
+        if (!energy) return;
+        const wins = Math.max(0, Math.min(5, Number(this.game.gameState.terapagosStellarWins) || 0));
+        energy.setAttribute('aria-valuenow', String(wins));
+        energy.querySelector('.terapagos-energy-track i').style.width = `${wins * 20}%`;
+        energy.querySelector('strong').textContent = `${wins}/5`;
+    }
+
     renderBattleStart(battle) {
         const wild = battle.wild;
         const playerPokemonId = this.game.gameState.team[this.game.gameState.activePokemonIndex];
@@ -672,11 +702,13 @@ class GameUI {
         // 獲取雙方屬性
         const wildData = POKEMON_DATA[wild.id];
         const playerData = POKEMON_DATA[playerPokemonId];
-        const wildTypes = wildData?.types || [];
-        const playerTypes = playerData?.types || [];
+        const wildTypes = this.game.getPokemonTypes(wild.id, wild);
+        const playerTypes = this.game.getPokemonTypes(playerPokemonId, playerPokemon);
 
         document.getElementById('enemy-sprite').dataset.pokemonId = wild.id;
+        document.getElementById('enemy-sprite').dataset.pokemonForm = wild.form || '';
         document.getElementById('player-sprite').dataset.pokemonId = playerPokemonId;
+        document.getElementById('player-sprite').dataset.pokemonForm = playerPokemon.form || '';
 
         // 敵方資訊
         const shinyPrefix = wild.isShiny ? '✨ ' : '';
@@ -705,7 +737,7 @@ class GameUI {
 
         // 敵方精靈圖（閃光寶可夢使用閃光圖片）
         const enemySprite = document.getElementById('enemy-sprite');
-        const enemySpriteUrl = wild.isShiny ? getShinyPokemonSpriteUrl(wild.id) : getPokemonSpriteUrl(wild.id);
+        const enemySpriteUrl = POKEMON_FORM_DATA[wild.id] ? getPokemonFormSpriteUrl(wild.id, wild.form, wild.isShiny) : wild.isShiny ? getShinyPokemonSpriteUrl(wild.id) : getPokemonSpriteUrl(wild.id);
         enemySprite.innerHTML = `<img src="${enemySpriteUrl}" alt="${wild.name}" onerror="fallbackPokemonSprite(this, ${wild.id}, ${!!wild.isShiny}, '👾')">${wild.isShiny ? this._shinyEntryEffectMarkup() : ''}`;
         if (wild.isShiny) {
             enemySprite.classList.add('shiny');
@@ -714,10 +746,17 @@ class GameUI {
         }
 
         // 玩家資訊（根據圖鑑展示偏好決定是否顯示閃光外觀）
-        const playerShowShiny = this.game.gameState.pokedexDisplay[playerPokemonId] === 'shiny';
+        const playerShowShiny = Number(playerPokemonId) === 646 && this.game.isKyuremFused()
+            ? !!this.game.gameState.kyuremFusionShiny
+            : Number(playerPokemonId) === 800 && this.game.isNecrozmaFused()
+                ? !!this.game.gameState.necrozmaFusionShiny
+                : Number(playerPokemonId) === 898 && this.game.isCalyrexFused()
+                    ? !!this.game.gameState.calyrexFusionShiny
+                    : this.game.gameState.pokedexDisplay[playerPokemonId] === 'shiny';
         const playerHasShiny = this.game.gameState.shinyDex[playerPokemonId];
         const playerShinyPrefix = playerHasShiny ? '✨ ' : '';
-        document.getElementById('player-name').textContent = playerShinyPrefix + playerPokemon.name;
+        const playerName = document.getElementById('player-name');
+        playerName.textContent = playerShinyPrefix + (playerData?.name || playerPokemon.name);
         document.getElementById('player-level').textContent = `Lv.${playerPokemon.level}`;
         const playerHpPercent = Math.max(0, battle.playerCurrentHp / battle.playerMaxHp * 100);
         document.getElementById('player-hp-bar').style.width = `${playerHpPercent}%`;
@@ -734,13 +773,27 @@ class GameUI {
         const playerTypesHtml = playerTypes.map(t =>
             `<span class="type-badge ${t}">${TYPE_NAMES[t]}</span>`
         ).join(' ') + playerTypeIcon;
-        document.getElementById('player-types').innerHTML = playerTypesHtml;
+        const playerOverdriveBadge = Number(playerPokemonId) === 646 && this.game.isKyuremOverdrive()
+            ? '<span class="kyurem-overdrive-badge">超頻驅動</span>'
+            : '';
+        const playerCalyrexFormBadge = Number(playerPokemonId) === 898 && this.game.isCalyrexFused()
+            ? `<span class="kyurem-overdrive-badge calyrex-rider-badge">${this.game.getCalyrexFusionPartner() === 896 ? '騎白馬的樣子' : '騎黑馬的樣子'}</span>`
+            : '';
+        const playerTerapagosFormBadge = Number(playerPokemonId) === 1024 && ['terastal', 'stellar'].includes(playerPokemon.form)
+            ? `<span class="kyurem-overdrive-badge terapagos-form-badge">${playerPokemon.form === 'stellar' ? '星晶形態' : '太晶形態'}</span>`
+            : '';
+        const playerTypesElement = document.getElementById('player-types');
+        playerTypesElement.innerHTML = `${playerTypesHtml} ${playerOverdriveBadge}${playerCalyrexFormBadge}${playerTerapagosFormBadge}`;
+        document.getElementById('player-terapagos-energy')?.remove();
+        if (Number(playerPokemonId) === 1024) {
+            playerTypesElement.insertAdjacentHTML('afterend', this.getTerapagosEnergyHtml('terapagos-energy terapagos-battle-energy', 'player-terapagos-energy'));
+        }
         this._updateBattleSkills(wildTypes);
 
         // 玩家精靈圖（根據圖鑑展示偏好決定是否使用閃光圖片）
         const playerSprite = document.getElementById('player-sprite');
-        const playerSpriteUrl = Number(playerPokemonId) === 386
-            ? getDeoxysSpriteUrl(playerPokemon.form, playerShowShiny)
+        const playerSpriteUrl = POKEMON_FORM_DATA[playerPokemonId] || Number(playerPokemonId) === 386 || ['white', 'black'].includes(playerPokemon.form)
+            ? getPokemonFormSpriteUrl(playerPokemonId, playerPokemon.form, playerShowShiny, Number(playerPokemonId) === 646 && this.game.isKyuremOverdrive())
             : playerShowShiny ? getShinyPokemonSpriteUrl(playerPokemonId) : getPokemonSpriteUrl(playerPokemonId);
         playerSprite.innerHTML = `<img src="${playerSpriteUrl}" alt="${playerPokemon.name}" onerror="fallbackPokemonSprite(this, ${playerPokemonId}, ${!!playerShowShiny}, '⚡')">${playerShowShiny && playerHasShiny ? this._shinyEntryEffectMarkup() : ''}`;
         if (playerShowShiny) {
@@ -843,43 +896,32 @@ class GameUI {
         status.appendChild(closeButton);
     }
 
-        // 使用整段 GIF 的可見範圍，並限制敵我視覺高度差，避免小型寶可夢過小。
+        // 依圖片可見範圍統一戰鬥畫面中的本體尺寸，不依寶可夢圖鑑身高縮放。
         _sizeBattleSprites() {
             const sprites = [...document.querySelectorAll('#battle-scene .pokemon-sprite')].map(container => {
-            const image = container.querySelector('img');
-            if (!image) return null;
-            const path = image.getAttribute('src')?.replace(/^sprites\//, '');
-            const bounds = SPRITE_BOUNDS[path];
-            const square = path?.startsWith('animated-square/') ? SPRITE_SQUARE_BOUNDS[path.slice('animated-square/'.length)] : null;
-            const animation = square || SPRITE_ANIMATION_BOUNDS[path];
-            const fraction = animation ? animation[3] / animation[1] : bounds ? (bounds[5] - bounds[3]) / bounds[1] : 1;
-            const aspect = animation ? animation[0] / animation[1] : bounds ? bounds[0] / bounds[1] : (image.naturalWidth / image.naturalHeight || 1);
-            const id = Number(container.dataset.pokemonId);
-            const shape = POKEMON_SHAPES[id];
-            const visibleWidth = animation ? animation[2] : bounds ? bounds[4] - bounds[2] : 1;
-            const visibleHeight = animation ? animation[3] : bounds ? bounds[5] - bounds[3] : 1;
-            // 蛇形身長包含彎曲身體；魚形以長邊與畫面高度混合估計。
-            const silhouette = Math.min(1, visibleHeight / Math.max(visibleWidth, visibleHeight));
-            const posture = shape === 2 ? 0.45 + 0.2 * silhouette : shape === 3 ? 0.6 + 0.4 * silhouette : 1;
-            const size = Math.max(0.15, Math.min(1, (POKEMON_HEIGHTS[id] || 10) / 20 * posture));
-                return { container, image, fraction, aspect, desired: container.clientHeight * size };
+                const image = container.querySelector('img');
+                if (!image) return null;
+                const path = image.getAttribute('src')?.replace(/^sprites\//, '');
+                const bounds = SPRITE_BOUNDS[path];
+                const square = path?.startsWith('animated-square/') ? SPRITE_SQUARE_BOUNDS[path.slice('animated-square/'.length)] : null;
+                const animation = square || SPRITE_ANIMATION_BOUNDS[path];
+                const canvasWidth = animation?.[0] || bounds?.[0] || image.naturalWidth || 1;
+                const canvasHeight = animation?.[1] || bounds?.[1] || image.naturalHeight || 1;
+                const visibleWidth = animation ? animation[2] : bounds ? bounds[4] - bounds[2] : canvasWidth;
+                const visibleHeight = animation ? animation[3] : bounds ? bounds[5] - bounds[3] : canvasHeight;
+                const visibleHeightFraction = visibleHeight / canvasHeight;
+                const visibleWidthPerImageHeight = visibleWidth / canvasHeight;
+                return { container, image, visibleHeightFraction, visibleWidthPerImageHeight };
             }).filter(Boolean);
             if (!sprites.length) return;
 
-            // 將較小一方提升至較大一方的 1/1.6；仍保留原有身高差異。
-            if (sprites.length === 2) {
-                const [smaller, larger] = [...sprites].sort((a, b) => a.desired - b.desired);
-                smaller.desired = Math.max(smaller.desired, larger.desired / 1.6);
-            }
-
-            let scale = 1;
         for (const s of sprites) {
-            if (s.desired > 0) {
-                scale = Math.min(scale, s.container.clientHeight * s.fraction / s.desired,
-                    s.container.clientWidth * s.fraction / (s.desired * s.aspect));
-            }
+                const targetVisibleHeight = s.container.clientHeight * 0.75;
+                const imageHeightByVisibleHeight = targetVisibleHeight / s.visibleHeightFraction;
+                const imageHeightByVisibleWidth = s.container.clientWidth * 0.95 / s.visibleWidthPerImageHeight;
+                const imageHeight = Math.min(imageHeightByVisibleHeight, imageHeightByVisibleWidth);
+                s.image.style.setProperty('--sprite-height', `${imageHeight}px`);
         }
-        for (const s of sprites) s.image.style.setProperty('--sprite-height', `${s.desired * scale / s.fraction}px`);
     }
 
     onPlayerAttack(data) {
@@ -1009,6 +1051,212 @@ class GameUI {
         return num.toString();
     }
 
+    completeKyuremFusion(overdrive = false, partnerId = null, shiny = false) {
+        const result = this.game.toggleKyuremFusion(overdrive, partnerId, shiny);
+        if (!result.success) {
+            this.showToast(`⚠️ ${result.message}`);
+            return;
+        }
+        if (this._pokedexCache) delete this._pokedexCache[646];
+        this.renderTeam();
+        this.renderPokedex();
+        const fusionName = result.partnerId === 644 ? '闇黑酋雷姆' : '焰白酋雷姆';
+        this.showToast(result.fused
+            ? (result.overdrive ? `⚡ 合體為超頻驅動${fusionName}` : `合體為${fusionName}`)
+            : '已解除合體，酋雷姆與合體夥伴已復原');
+    }
+
+    selectKyuremFusionPartner(partnerId) {
+        if (this.game.areKyuremFusionPartnersSixIV(partnerId)) {
+            this.showKyuremFusionModeDialog(partnerId);
+        } else {
+            this.completeKyuremFusion(false, partnerId);
+        }
+    }
+
+    completeNecrozmaFusion(partnerId = null, shiny = false) {
+        const result = this.game.toggleNecrozmaFusion(partnerId, shiny);
+        if (!result.success) {
+            this.showToast(`⚠️ ${result.message}`);
+            return;
+        }
+        this.renderTeam();
+        this.renderPokedex();
+        const formName = result.partnerId === 791 ? '黃昏之鬃' : '拂曉之翼';
+        this.showToast(result.fused ? `奈克洛茲瑪合體為${formName}` : '奈克洛茲瑪已解除合體');
+    }
+
+    showNecrozmaFusionPartnerDialog() {
+        const dialog = document.getElementById('necrozma-fusion-partner-dialog');
+        const solgaleoChoice = document.getElementById('necrozma-fusion-solgaleo-choice');
+        const lunalaChoice = document.getElementById('necrozma-fusion-lunala-choice');
+        const shinyToggle = document.getElementById('necrozma-fusion-shiny-toggle');
+        const confirm = document.getElementById('necrozma-fusion-partner-confirm');
+        const partners = this.game.getNecrozmaFusionPartnersInTeam();
+        let selectedPartner = null;
+        let selectedShiny = false;
+        const updatePreviews = () => {
+            const variant = selectedShiny ? 'shiny' : 'normal';
+            solgaleoChoice.querySelector('img').src = `sprites/animated/forms/${variant}/necrozma-dusk-mane.gif`;
+            lunalaChoice.querySelector('img').src = `sprites/animated/forms/${variant}/necrozma-dawn-wings.gif`;
+            shinyToggle.setAttribute('aria-pressed', String(selectedShiny));
+            shinyToggle.title = selectedShiny ? '目前預覽閃光外觀；按下切回一般' : '按下切換閃光預覽';
+        };
+        const selectPartner = partnerId => {
+            selectedPartner = partnerId;
+            solgaleoChoice.classList.toggle('selected', partnerId === 791);
+            solgaleoChoice.setAttribute('aria-pressed', String(partnerId === 791));
+            lunalaChoice.classList.toggle('selected', partnerId === 792);
+            lunalaChoice.setAttribute('aria-pressed', String(partnerId === 792));
+            confirm.disabled = false;
+        };
+        solgaleoChoice.hidden = !partners.includes(791);
+        lunalaChoice.hidden = !partners.includes(792);
+        solgaleoChoice.classList.remove('selected');
+        lunalaChoice.classList.remove('selected');
+        solgaleoChoice.setAttribute('aria-pressed', 'false');
+        lunalaChoice.setAttribute('aria-pressed', 'false');
+        solgaleoChoice.onclick = () => selectPartner(791);
+        lunalaChoice.onclick = () => selectPartner(792);
+        selectedShiny = false;
+        shinyToggle.onclick = () => {
+            selectedShiny = !selectedShiny;
+            updatePreviews();
+        };
+        updatePreviews();
+        confirm.disabled = true;
+        confirm.onclick = () => {
+            if (!selectedPartner) return;
+            dialog.close();
+            this.completeNecrozmaFusion(selectedPartner, selectedShiny);
+        };
+        dialog.showModal();
+    }
+
+    completeCalyrexFusion(partnerId = null, shiny = false) {
+        const result = this.game.toggleCalyrexFusion(partnerId, shiny);
+        if (!result.success) {
+            this.showToast(`⚠️ ${result.message}`);
+            return;
+        }
+        this.renderTeam();
+        this.renderPokedex();
+        const rider = result.partnerId === 896 ? '騎白馬的樣子' : '騎黑馬的樣子';
+        this.showToast(result.fused ? `蕾冠王變為${rider}` : '蕾冠王已解除合體');
+    }
+
+    showCalyrexFusionPartnerDialog() {
+        const dialog = document.getElementById('calyrex-fusion-partner-dialog');
+        const whiteChoice = document.getElementById('calyrex-fusion-white-choice');
+        const blackChoice = document.getElementById('calyrex-fusion-black-choice');
+        const shinyToggle = document.getElementById('calyrex-fusion-shiny-toggle');
+        const confirm = document.getElementById('calyrex-fusion-partner-confirm');
+        const partners = this.game.getCalyrexFusionPartnersInTeam();
+        let selectedPartner = null;
+        let selectedShiny = false;
+        const selectPartner = partnerId => {
+            selectedPartner = partnerId;
+            whiteChoice.classList.toggle('selected', partnerId === 896);
+            whiteChoice.setAttribute('aria-pressed', String(partnerId === 896));
+            blackChoice.classList.toggle('selected', partnerId === 897);
+            blackChoice.setAttribute('aria-pressed', String(partnerId === 897));
+            confirm.disabled = false;
+        };
+        const updatePreviews = () => {
+            const variant = selectedShiny ? 'shiny' : 'normal';
+            whiteChoice.querySelector('img').src = `sprites/animated/forms/${variant}/calyrex-ice-rider.gif`;
+            blackChoice.querySelector('img').src = `sprites/animated/forms/${variant}/calyrex-shadow-rider.gif`;
+            shinyToggle.setAttribute('aria-pressed', String(selectedShiny));
+            shinyToggle.title = selectedShiny ? '目前預覽閃光外觀；按下切回一般' : '按下切換閃光預覽';
+        };
+        whiteChoice.hidden = !partners.includes(896);
+        blackChoice.hidden = !partners.includes(897);
+        whiteChoice.classList.remove('selected');
+        blackChoice.classList.remove('selected');
+        whiteChoice.setAttribute('aria-pressed', 'false');
+        blackChoice.setAttribute('aria-pressed', 'false');
+        whiteChoice.onclick = () => selectPartner(896);
+        blackChoice.onclick = () => selectPartner(897);
+        selectedShiny = false;
+        shinyToggle.onclick = () => {
+            selectedShiny = !selectedShiny;
+            updatePreviews();
+        };
+        updatePreviews();
+        confirm.disabled = true;
+        confirm.onclick = () => {
+            if (!selectedPartner) return;
+            dialog.close();
+            this.completeCalyrexFusion(selectedPartner, selectedShiny);
+        };
+        dialog.showModal();
+    }
+
+    showKyuremFusionPartnerDialog() {
+        const dialog = document.getElementById('kyurem-fusion-partner-dialog');
+        const reshiramChoice = document.getElementById('kyurem-fusion-reshiram-choice');
+        const zekromChoice = document.getElementById('kyurem-fusion-zekrom-choice');
+        const confirm = document.getElementById('kyurem-fusion-partner-confirm');
+        let selectedPartnerId = null;
+        const selectPartner = partnerId => {
+            selectedPartnerId = partnerId;
+            reshiramChoice.classList.toggle('selected', partnerId === 643);
+            reshiramChoice.setAttribute('aria-pressed', String(partnerId === 643));
+            zekromChoice.classList.toggle('selected', partnerId === 644);
+            zekromChoice.setAttribute('aria-pressed', String(partnerId === 644));
+            confirm.disabled = false;
+        };
+        reshiramChoice.onclick = () => selectPartner(643);
+        zekromChoice.onclick = () => selectPartner(644);
+        confirm.disabled = true;
+        confirm.onclick = () => {
+            if (!selectedPartnerId) return;
+            dialog.close();
+            this.selectKyuremFusionPartner(selectedPartnerId);
+        };
+        dialog.showModal();
+    }
+
+    showKyuremFusionModeDialog(partnerId = 643) {
+        const dialog = document.getElementById('kyurem-fusion-mode-dialog');
+        const shinyToggle = document.getElementById('kyurem-fusion-shiny-toggle');
+        const normalPreview = document.getElementById('kyurem-fusion-normal-preview');
+        const overdrivePreview = document.getElementById('kyurem-fusion-overdrive-preview');
+        const normalChoice = document.getElementById('kyurem-fusion-normal-choice');
+        const overdriveChoice = document.getElementById('kyurem-fusion-overdrive-choice');
+        const form = partnerId === 644 ? 'black' : 'white';
+        const fusionName = partnerId === 644 ? '闇黑酋雷姆' : '焰白酋雷姆';
+        document.getElementById('kyurem-fusion-mode-title').textContent = `選擇${fusionName}合體模式`;
+        document.getElementById('kyurem-fusion-mode-description').textContent = `${fusionName}合體雙方皆為 6V，請選擇合體模式。`;
+        let selectedMode = 'normal';
+        let selectedShiny = false;
+        const selectMode = mode => {
+            selectedMode = mode;
+            normalChoice.classList.toggle('selected', mode === 'normal');
+            normalChoice.setAttribute('aria-pressed', String(mode === 'normal'));
+            overdriveChoice.classList.toggle('selected', mode === 'overdrive');
+            overdriveChoice.setAttribute('aria-pressed', String(mode === 'overdrive'));
+        };
+        const updatePreviews = shiny => {
+            selectedShiny = shiny;
+            normalPreview.src = getPokemonFormSpriteUrl(646, form, shiny, false);
+            overdrivePreview.src = getPokemonFormSpriteUrl(646, form, shiny, true);
+            shinyToggle.setAttribute('aria-pressed', String(shiny));
+            shinyToggle.title = shiny ? '目前預覽閃光外觀；按下切回一般' : '按下切換閃光預覽';
+        };
+        updatePreviews(false);
+        selectMode('normal');
+        shinyToggle.onclick = () => updatePreviews(shinyToggle.getAttribute('aria-pressed') !== 'true');
+        normalChoice.onclick = () => selectMode('normal');
+        overdriveChoice.onclick = () => selectMode('overdrive');
+        const choose = overdrive => {
+            dialog.close();
+            this.completeKyuremFusion(overdrive, partnerId, selectedShiny);
+        };
+        document.getElementById('kyurem-fusion-confirm').onclick = () => choose(selectedMode === 'overdrive');
+        dialog.showModal();
+    }
+
     renderTeam() {
         if (!this.game.gameState) return;
 
@@ -1046,6 +1294,11 @@ class GameUI {
             const pokemonId = this.game.gameState.team[index];
             if (!pokemonId) return;
             const isActive = index === activeIdx;
+            const fusionReserved = this.game.isFusionReservedPokemon(pokemonId);
+            const fusionLocked = this.game.isFusionLockedPokemon(pokemonId);
+            const canToggleKyuremFusion = Number(pokemonId) === 646 && this.game.getKyuremFusionPartnersInTeam().length > 0;
+            const canToggleNecrozmaFusion = Number(pokemonId) === 800 && this.game.getNecrozmaFusionPartnersInTeam().length > 0;
+            const canToggleCalyrexFusion = Number(pokemonId) === 898 && this.game.getCalyrexFusionPartnersInTeam().length > 0;
             
             // 從 game.createPokemon 獲取寶可夢例項（使用儲存的等級）
             const pokemon = this.game.createPokemon(pokemonId, true);
@@ -1054,23 +1307,24 @@ class GameUI {
             const battleStats = this.game.calculateBattleStats(index);
             const expProgress = this.game.getExpProgress(pokemonId);
             const catchupPercent = Math.round((this.game.getTeamCatchupMultiplier(pokemonId) - 1) * 1000) / 10;
-            const baseData = POKEMON_DATA[pokemonId];
+            const teamDisplayName = POKEMON_DATA[pokemonId]?.name || pokemon.name;
 
-            const typeBadges = baseData.types.map(t =>
+            const formTypes = this.game.getPokemonTypes(pokemonId, pokemon);
+            const typeBadges = formTypes.map(t =>
                 `<span class="type-badge ${t}">${TYPE_NAMES[t]}</span>`
             ).join(' ');
 
             const towerFainted = !!(this.game._towerMode && this.game._towerFaintedIds?.has(pokemonId));
             const slot = document.createElement('div');
-            slot.className = `team-slot${isActive ? ' active' : ''}${towerFainted ? ' tower-fainted' : ''}`;
-            slot.tabIndex = 0;
-            slot.setAttribute('role', 'button');
-            slot.setAttribute('aria-label', `查看 ${pokemon.name} 的詳細數值`);
+            slot.className = `team-slot${isActive ? ' active' : ''}${towerFainted ? ' tower-fainted' : ''}${fusionReserved ? ' fusion-reserved' : ''}`;
+            slot.tabIndex = fusionReserved ? -1 : 0;
+            slot.setAttribute('role', fusionReserved ? 'group' : 'button');
+            slot.setAttribute('aria-label', `查看 ${teamDisplayName} 的詳細數值`);
             slot.addEventListener('click', event => {
-                if (!event.target.closest('button')) this.showTeamPokemonDetails(index);
+                if (!fusionReserved && !event.target.closest('button')) this.showTeamPokemonDetails(index);
             });
             slot.addEventListener('keydown', event => {
-                if (event.target === slot && (event.key === 'Enter' || event.key === ' ')) {
+                if (!fusionReserved && event.target === slot && (event.key === 'Enter' || event.key === ' ')) {
                     event.preventDefault();
                     this.showTeamPokemonDetails(index);
                 }
@@ -1084,31 +1338,52 @@ class GameUI {
             const potential = this.game.calculatePotential(pokemonId);
             const potentialColor = potential >= 80 ? '#2ecc71' : potential >= 60 ? '#f39c12' : '#e74c3c';
             
-            const showShiny = this.game.gameState.pokedexDisplay[pokemonId] === 'shiny';
-        const slotSpriteUrl = Number(pokemonId) === 386
-            ? getDeoxysSpriteUrl(pokemon.form, showShiny)
-            : showShiny ? getShinyPokemonSpriteUrl(pokemonId) : getPokemonSpriteUrl(pokemonId);
-            const hasShiny = this.game.gameState.shinyDex[pokemonId];
-            const shinyNamePrefix = hasShiny ? '✨ ' : '';
+            const showShiny = Number(pokemonId) === 646 && this.game.isKyuremFused()
+                ? !!this.game.gameState.kyuremFusionShiny
+                : Number(pokemonId) === 800 && this.game.isNecrozmaFused()
+                    ? !!this.game.gameState.necrozmaFusionShiny
+                    : Number(pokemonId) === 898 && this.game.isCalyrexFused()
+                        ? !!this.game.gameState.calyrexFusionShiny
+                        : this.game.gameState.pokedexDisplay[pokemonId] === 'shiny';
+            const teamDisplayForm = Number(pokemonId) === 1024 ? 'normal' : pokemon.form;
+            const slotSpriteUrl = POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386 || ['white', 'black'].includes(teamDisplayForm)
+                ? getPokemonFormSpriteUrl(pokemonId, teamDisplayForm, showShiny, Number(pokemonId) === 646 && this.game.isKyuremOverdrive())
+                : showShiny ? getShinyPokemonSpriteUrl(pokemonId) : getPokemonSpriteUrl(pokemonId);
+const hasShiny = this.game.gameState.shinyDex[pokemonId];
+const overdriveBadgeHtml = Number(pokemonId) === 646 && this.game.isKyuremOverdrive()
+    ? '<span class="kyurem-overdrive-badge">超頻驅動</span>'
+    : '';
+const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFused()
+    ? `<span class="kyurem-overdrive-badge">${this.game.getCalyrexFusionPartner() === 896 ? '騎白馬的樣子' : '騎黑馬的樣子'}</span>`
+    : '';
 
             // 技能等級顯示（0不顯示）
             const skillLevel = storedData ? (storedData.skillLevel || 0) : 0;
             const skillBadgeHtml = skillLevel > 0 ? ` <span class="team-skill-badge">⚡${skillLevel >= MAX_SKILL_LEVEL ? 'Max' : 'Lv.' + skillLevel}</span>` : '';
             const canUpgradeSkill = this.game.isSkillUnlocked() && storedData && storedData.level >= SKILL_LEVEL_REQUIREMENT && skillLevel < MAX_SKILL_LEVEL;
+            const terapagosEnergyHtml = Number(pokemonId) === 1024
+                ? this.getTerapagosEnergyHtml()
+                : '';
 
             slot.innerHTML = `
-                <div class="slot-main-row${Number(pokemonId) === 386 ? ' has-deoxys-actions' : ''}">
+            <div class="slot-main-row${POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386 || canToggleKyuremFusion ? ' has-form-actions' : ''}">
                     <div class="slot-sprite${showShiny ? ' shiny' : ''}"><img src="${slotSpriteUrl}" alt="${pokemon.name}" onerror="fallbackPokemonSprite(this, ${pokemonId}, ${!!showShiny}, '🔵')"></div>
                     <div class="slot-info">
-                        <div class="slot-name">${pokemon.name}${shinyNamePrefix} ${isActive ? '⚔️' : ''} ${towerFainted ? '<span class="tower-fainted-label">已倒下</span>' : ''} <small style="color:var(--text-secondary);font-weight:normal">Lv.${pokemon.level}</small>${skillBadgeHtml}</div>
-                        <div class="slot-type-nature">${typeBadges}</div>
+                        <div class="slot-name"><span class="slot-name-main">${teamDisplayName}</span>${showShiny ? '<span class="team-shiny-mark" title="閃光">✨</span>' : ''}${isActive ? '<span class="team-active-mark" title="目前出戰">⚔️</span>' : ''}${towerFainted ? '<span class="tower-fainted-label">已倒下</span>' : ''}<small class="team-level">Lv.${pokemon.level}</small>${skillBadgeHtml}</div>
+                        <div class="slot-type-nature${calyrexRiderBadgeHtml ? ' calyrex-rider-row' : ''}">${typeBadges}${overdriveBadgeHtml}${calyrexRiderBadgeHtml}</div>
+                        ${terapagosEnergyHtml}
                     </div>
-                    <div class="team-slot-actions${Number(pokemonId) === 386 ? ' deoxys-team-actions' : ''}">
+                    <div class="team-slot-actions${POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386 || canToggleKyuremFusion ? ' has-form-actions' : ''}">
                         <div class="team-slot-primary-actions">
-                        ${!isActive ? `<button onclick="gameUI.setActive(${index})" ${towerFainted ? 'disabled' : ''}>出戰</button>` : ''}
-                        ${!isActive && !this.game._towerMode && this.game.gameState.team.length > 1 ? `<button class="remove-btn" onclick="gameUI.removeFromTeam(${index})">移除</button>` : ''}
+                            ${fusionReserved ? '<button type="button" disabled>合體中</button>' : !isActive ? `<button onclick="gameUI.setActive(${index})" ${towerFainted ? 'disabled' : ''}>出戰</button>` : ''}
+                            ${!fusionLocked && !isActive && !this.game._towerMode && this.game.gameState.team.length > 1 ? `<button class="remove-btn" onclick="gameUI.removeFromTeam(${index})">移除</button>` : ''}
                         </div>
-                ${Number(pokemonId) === 386 && !this.game._towerMode ? '<button type="button" class="deoxys-form-team-btn">型態</button>' : ''}
+                        <div class="team-slot-secondary-actions">
+                            ${!this.game._towerMode && !fusionLocked && ![898, 1024].includes(Number(pokemonId)) && (POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386) ? '<button type="button" class="deoxys-form-team-btn">型態</button>' : ''}
+                            ${!this.game._towerMode && canToggleKyuremFusion ? `<button type="button" class="kyurem-fusion-btn">${this.game.isKyuremFused() ? '解除合體' : '合體'}</button>` : ''}
+                            ${!this.game._towerMode && canToggleNecrozmaFusion ? `<button type="button" class="necrozma-fusion-btn">${this.game.isNecrozmaFused() ? '解除合體' : '合體'}</button>` : ''}
+                            ${!this.game._towerMode && canToggleCalyrexFusion ? `<button type="button" class="calyrex-fusion-btn">${this.game.isCalyrexFused() ? '解除合體' : '合體'}</button>` : ''}
+                        </div>
                     </div>
                 </div>
                 <div class="team-stats-wrapper">
@@ -1151,17 +1426,50 @@ class GameUI {
                     ${catchupPercent > 0 ? `<div class="slot-exp-bonus">等級過低額外 +${catchupPercent}%</div>` : ''}
                 </div>
             `;
-            if (Number(pokemonId) === 386) {
-                const formNames = { normal: '普通', attack: '攻擊', defense: '防禦', speed: '速度' };
+            slot.querySelector('.kyurem-fusion-btn')?.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (this.game.isKyuremFused()) {
+                    this.completeKyuremFusion();
+                    return;
+                }
+                const partners = this.game.getKyuremFusionPartnersInTeam();
+                if (partners.length > 1) this.showKyuremFusionPartnerDialog();
+                else if (partners.length === 1) this.selectKyuremFusionPartner(partners[0]);
+                else this.completeKyuremFusion(false);
+            });
+            slot.querySelector('.necrozma-fusion-btn')?.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (this.game.isNecrozmaFused()) {
+                    this.completeNecrozmaFusion();
+                    return;
+                }
+                const partners = this.game.getNecrozmaFusionPartnersInTeam();
+                if (partners.length > 1) this.showNecrozmaFusionPartnerDialog();
+                else this.completeNecrozmaFusion(partners[0] || null);
+            });
+            slot.querySelector('.calyrex-fusion-btn')?.addEventListener('click', event => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (this.game.isCalyrexFused()) {
+                    this.completeCalyrexFusion();
+                    return;
+                }
+                this.showCalyrexFusionPartnerDialog();
+            });
+            if ((POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386) && ![800, 898, 1024].includes(Number(pokemonId))) {
+                const formNames = POKEMON_FORM_DATA[pokemonId]?.forms || { normal: { name: '普通' }, attack: { name: '攻擊' }, defense: { name: '防禦' }, speed: { name: '速度' } };
                 const formLabel = document.createElement('small');
-                formLabel.className = 'deoxys-form-label';
-            formLabel.textContent = `${formNames[pokemon.form] || '普通'}形態`;
-                slot.querySelector('.slot-name')?.appendChild(formLabel);
+                formLabel.className = 'deoxys-form-label pokemon-form-badge';
+                const selectedFormName = formNames[pokemon.form]?.name || formNames[pokemon.form] || '普通';
+                formLabel.textContent = formatPokemonFormDisplayName(selectedFormName);
+                slot.querySelector('.slot-type-nature')?.appendChild(formLabel);
             }
         slot.querySelector('.deoxys-form-team-btn')?.addEventListener('click', event => {
             event.preventDefault();
             event.stopPropagation();
-            this.showDeoxysFormDialog(386, 'edit');
+                this.showDeoxysFormDialog(pokemonId, 'edit');
         });
         slot.querySelector('.team-skill-upgrade')?.addEventListener('click', event => {
                 event.stopPropagation();
@@ -1175,6 +1483,10 @@ class GameUI {
     previewTeamRecommendation(targetLevel) {
         if (this.game._towerMode || this.game._offlineSimState || this.game.healTimer || this.game._nextBattleTimeout) {
             this.showToast('⚠️ 挑戰、離線結算或戰鬥間隔期間無法更換隊伍');
+            return;
+        }
+        if (this.game.isKyuremFused()) {
+            this.showToast('⚠️ 酋雷姆合體期間無法套用推薦隊伍');
             return;
         }
         const enemy = this.game.currentBattle?.wild;
@@ -1198,6 +1510,10 @@ class GameUI {
                 return;
             }
             const oldActiveId = this.game.gameState.team[this.game.gameState.activePokemonIndex];
+            if (originalTeam.includes(1024) && !applyTeam.includes(1024)) {
+                this.game.gameState.terapagosStellarWins = 0;
+                this.game.gameState.terapagosBattleForm = null;
+            }
             this.game.gameState.team = applyTeam.slice();
             applyTeam.filter(id => !originalTeam.includes(id)).forEach(id => this.setDefaultTeamSprite(id));
             let activeIndex = result.activeIndex;
@@ -1302,14 +1618,20 @@ class GameUI {
 
         const effective = this.game.getEffectiveBaseStats(id);
         const own = this.game.calculateBaseStats(pokemon);
-        const rawBase = Number(id) === 386 ? DEOXYS_FORM_BASE_STATS[pokemon.form] || DEOXYS_FORM_BASE_STATS.normal : data.baseStats;
+        const rawBase = Number(id) === 386
+            ? DEOXYS_FORM_BASE_STATS[pokemon.form] || DEOXYS_FORM_BASE_STATS.normal
+            : this.game.getPokemonFormData(id, pokemon)?.baseStats || data.baseStats;
         const stats = [['hp', '生命'], ['atk', '物攻'], ['def', '物防'], ['spAtk', '特攻'], ['spDef', '特防'], ['speed', '速度']];
         const rows = stats.map(([key, name]) => `<div class="team-detail-row"><strong>${name}</strong><span>${rawBase[key]}</span><span>${effective[key]}</span><span>${pokemon.ivs[key]}</span><span>${own[key].toLocaleString()}</span></div>`).join('');
         const finalStats = [['生命值', battle.hp], ['攻擊力', battle.attack], ['防禦力', battle.defense], ['速度', battle.speed]];
         const maxStat = Math.max(1, ...finalStats.map(([, value]) => value));
         const showShiny = this.game.gameState.pokedexDisplay[id] === 'shiny';
-        const spriteUrl = Number(id) === 386 ? getDeoxysSpriteUrl(pokemon.form, showShiny) : showShiny ? getShinyPokemonSpriteUrl(id) : getPokemonSpriteUrl(id);
-        const formName = Number(id) === 386 ? `（${{ normal: '普通', attack: '攻擊', defense: '防禦', speed: '速度' }[pokemon.form] || '普通'}形態）` : '';
+        const teamDisplayForm = Number(id) === 1024 ? 'normal' : pokemon.form;
+        const spriteUrl = POKEMON_FORM_DATA[id] || Number(id) === 386 || ['white', 'black'].includes(teamDisplayForm) ? getPokemonFormSpriteUrl(id, teamDisplayForm, showShiny, Number(id) === 646 && this.game.isKyuremOverdrive()) : showShiny ? getShinyPokemonSpriteUrl(id) : getPokemonSpriteUrl(id);
+        const formDefinition = this.game.getPokemonFormData(id, pokemon);
+        const formName = Number(id) !== 1024 && formDefinition && formDefinition.name !== pokemon.name
+            ? `（${formDefinition.name}）`
+            : Number(id) === 386 ? `（${{ normal: '普通', attack: '攻擊', defense: '防禦', speed: '速度' }[pokemon.form] || '普通'}形態）` : '';
         document.getElementById('team-detail-title').textContent = `${pokemon.name}${formName} · Lv.${pokemon.level}`;
         const detailHtml = `
             <div class="team-detail-hero"><div class="team-detail-sprite"><img src="${spriteUrl}" alt="${pokemon.name}" onerror="fallbackPokemonSprite(this, ${id}, ${!!showShiny}, '🔵')"></div><div class="team-detail-hero-info"><div class="team-detail-badge">${index === this.game.gameState.activePokemonIndex ? '目前出戰' : '隊伍成員'}</div><p class="team-detail-intro">戰力 ${this.game.calculatePower(id, true).toLocaleString()}<br>潛力 ${this.game.calculatePotential(id)}%</p></div></div>
@@ -1341,6 +1663,7 @@ class GameUI {
 
     removeFromTeam(index) {
         if (this.game.removeFromTeam(index)) {
+            this.game.save();
             this.renderTeam();
             this.showToast('寶可夢已離開隊伍');
         }
@@ -1398,21 +1721,37 @@ class GameUI {
     }
 
     showDeoxysFormDialog(pokemonId, mode = 'edit') {
-        if (Number(pokemonId) !== 386 || this.game._towerMode) return;
-        if (mode === 'edit' && !this.game.gameState.team.includes(386)) return;
-        if (mode === 'pokedex' && this.game.gameState.pokedex[386] !== 'caught') return;
-        if (mode === 'add' && (this.game.gameState.team.length >= 6 || this.game.gameState.team.includes(386))) return;
+        const id = Number(pokemonId);
+        const entry = POKEMON_FORM_DATA[id];
+        if ((!entry && id !== 386) || this.game._towerMode) return;
+        if (mode === 'edit' && (!this.game.gameState.team.includes(id) || this.game.isFusionLockedPokemon(id))) return;
+        if (mode === 'pokedex' && this.game.gameState.pokedex[id] !== 'caught') return;
+        if (mode === 'pokedex' && this.game.isFusionLockedPokemon(id)) return;
+        if (mode === 'add' && (this.game.gameState.team.length >= 6 || this.game.gameState.team.includes(id))) return;
 
         const dialog = document.getElementById('deoxys-form-dialog');
         const options = document.getElementById('deoxys-form-options');
-        const savedForm = this.game.gameState.pokemonForms?.[386];
-        const currentForm = ['normal', 'attack', 'defense', 'speed'].includes(savedForm) ? savedForm : 'normal';
-        options.querySelector(`input[value="${currentForm}"]`).checked = true;
+        const forms = entry?.forms || {
+            normal: { name: '普通形態', sprite: 'normal' }, attack: { name: '攻擊形態', sprite: 'attack' },
+            defense: { name: '防禦形態', sprite: 'defense' }, speed: { name: '速度形態', sprite: 'speed' },
+        };
+        const selectableForms = Object.fromEntries(Object.entries(forms).filter(([, data]) => !data.fusionPartner));
+        const currentForm = this.game.getPokemonForm(id);
+        dialog.classList.toggle('many-forms', Object.keys(selectableForms).length > 4);
+        options.innerHTML = `<legend><span>型態（影響屬性與種族值）</span></legend>${Object.entries(selectableForms).map(([form, data]) => {
+            const unlocked = this.game.isPokemonFormUnlocked(id, form);
+            const preview = unlocked
+                ? `<img data-deoxys-preview="${form}" src="${getPokemonFormSpriteUrl(id, form, false)}" alt="">`
+                : '<span class="form-locked-sprite" aria-hidden="true">?</span>';
+            const lockText = data.unlockText || (data.unlock === 'zygarde50' ? '捕獲 6V 基格爾德' : data.unlock === 'zygardeComplete' ? '捕獲閃光基格爾德' : '尚未解鎖');
+            return `<label class="${unlocked ? '' : 'form-locked'}"><input type="radio" name="deoxys-form" value="${form}" ${form === currentForm ? 'checked' : ''} ${unlocked ? '' : 'disabled'}><span class="team-appearance-card">${preview}<span><strong>${unlocked ? formatPokemonFormDisplayName(data.name) : '????'}</strong>${!unlocked ? `<small>${lockText}</small>` : ''}</span></span></label>`;
+        }).join('')}`;
         const shinyToggle = document.getElementById('deoxys-shiny-toggle');
-        shinyToggle.hidden = !this.game.gameState.shinyDex?.[386];
-        let isShowingShiny = !shinyToggle.hidden && this.game.gameState.pokedexDisplay?.[386] === 'shiny';
+        shinyToggle.hidden = !this.game.gameState.shinyDex?.[id];
+        let isShowingShiny = !shinyToggle.hidden && this.game.gameState.pokedexDisplay?.[id] === 'shiny';
         const updateDeoxysPreviews = () => options.querySelectorAll('[data-deoxys-preview]').forEach(image => {
-            image.src = getDeoxysSpriteUrl(image.dataset.deoxysPreview, isShowingShiny);
+            const form = image.dataset.deoxysPreview;
+            if (this.game.isPokemonFormUnlocked(id, form)) image.src = getPokemonFormSpriteUrl(id, form, isShowingShiny);
         });
         options.onchange = updateDeoxysPreviews;
         shinyToggle.setAttribute('aria-pressed', String(isShowingShiny));
@@ -1425,22 +1764,27 @@ class GameUI {
             updateDeoxysPreviews();
         };
         updateDeoxysPreviews();
-        document.getElementById('deoxys-form-title').textContent = mode === 'add' ? '加入代歐奇希斯' : '設定代歐奇希斯';
+        const speciesName = POKEMON_DATA[id]?.name || '寶可夢';
+        document.getElementById('deoxys-form-title').textContent = mode === 'add' ? `加入${speciesName}` : `設定${speciesName}`;
+        document.getElementById('deoxys-form-description').textContent = id === 800
+            ? '究極形態：取得奈克洛茲瑪的 6V 與閃光後解鎖；黃昏之鬃與拂曉之翼請使用合體按鈕。'
+            : id === 718
+                ? '50%：捕獲 6V 解鎖；完全體：捕獲閃光解鎖。'
+                : '選擇加入隊伍或戰鬥時使用的型態與外觀；鎖定型態會顯示解鎖條件。';
         document.getElementById('deoxys-form-confirm').textContent = mode === 'add' ? '加入隊伍' : '套用設定';
         document.getElementById('deoxys-form-confirm').onclick = () => {
-            const form = options.querySelector('input:checked')?.value || 'normal';
-            this.game.gameState.pokemonForms = this.game.gameState.pokemonForms || {};
-            this.game.gameState.pokemonForms[386] = form;
-            if (!shinyToggle.hidden && isShowingShiny) this.game.gameState.pokedexDisplay[386] = 'shiny';
-            else delete this.game.gameState.pokedexDisplay[386];
+            const form = options.querySelector('input:checked')?.value || currentForm;
+            if (!this.game.setPokemonForm(id, form)) return;
+            if (!shinyToggle.hidden && isShowingShiny) this.game.gameState.pokedexDisplay[id] = 'shiny';
+            else delete this.game.gameState.pokedexDisplay[id];
             dialog.close();
             if (mode === 'add') {
-                this._addToTeamWithAppearance(386, isShowingShiny ? 'shiny' : 'normal');
+                this._addToTeamWithAppearance(id, isShowingShiny ? 'shiny' : 'normal');
             } else {
                 this.game.save();
                 this.renderTeam();
                 this.renderPokedex();
-                this.showToast('代歐奇希斯型態設定已更新');
+                this.showToast(`${speciesName}型態設定已更新`);
             }
         };
         dialog.showModal();
@@ -1492,7 +1836,7 @@ class GameUI {
         originalTeam.forEach((id, index) => {
             const data = POKEMON_DATA[id];
             const stored = this.game.getStoredData(id);
-            if (!data) return;
+            if (!data || this.game.isFusionLockedPokemon(id)) return;
             const shiny = this.game.gameState.pokedexDisplay[id] === 'shiny';
             const url = shiny ? getShinyPokemonSpriteUrl(id) : getPokemonSpriteUrl(id);
             const button = document.createElement('button');
@@ -1527,12 +1871,17 @@ class GameUI {
     }
 
     removeFromTeamByPokemonId(pokemonId) {
+        if (this.game.isFusionLockedPokemon(pokemonId)) {
+            this.showToast('⚠️ 合體中的寶可夢無法離隊，請先解除合體');
+            return;
+        }
         if (this.game.gameState.team.length <= 1) {
             this.showToast('⚠️ 隊伍至少需要保留一隻寶可夢');
             return;
         }
         const result = this.game.removeFromTeamByPokemonId(pokemonId);
         if (result) {
+            this.game.save();
             this.renderTeam();
             this.renderPokedex();
             this.showToast('寶可夢已離開隊伍');
@@ -2106,6 +2455,7 @@ class GameUI {
     renderPokedex() {
         const stats = this.game.getPokedexStats();
         const shinyCount = this.game.getShinyStats();
+        this._renderPokedexRewardProgress();
         
         // 根據地區篩選更新統計資料顯示
         const caughtEl = document.getElementById('pokedex-caught');
@@ -2161,7 +2511,7 @@ class GameUI {
 
         // 搜尋過濾
         if (this.pokedexTypeFilter !== 'all') {
-            allIds = allIds.filter(id => POKEMON_DATA[id]?.types?.includes(this.pokedexTypeFilter));
+            allIds = allIds.filter(id => this.game.getPokemonTypes(id).includes(this.pokedexTypeFilter));
         }
 
         if (this.pokedexSearchQuery) {
@@ -2192,6 +2542,8 @@ class GameUI {
                 return skillUnlocked && this.game.gameState.pokedex[id] === 'caught' && stored &&
                     stored.level >= SKILL_LEVEL_REQUIREMENT && (stored.skillLevel || 0) < MAX_SKILL_LEVEL;
             });
+        } else if (this.pokedexFilter === 'forms') {
+            allIds = allIds.filter(id => !!POKEMON_FORM_DATA[id] || id === 386);
         }
 
         // 圖鑑依編號顯示。
@@ -2204,6 +2556,52 @@ class GameUI {
         const PAGE_SIZE = 200;
         this._pokedexPageSize = PAGE_SIZE;
         this._renderPokedexBatch(grid, PAGE_SIZE);
+    }
+
+    _refreshPokedexRewardProgressIfVisible() {
+        if (this.currentTab === 'tab-pokedex') this._renderPokedexRewardProgress();
+    }
+
+    _renderPokedexRewardProgress() {
+        const panel = document.getElementById('pokedex-reward-section');
+        if (!panel || !this.game.gameState) return;
+
+        const info = this.game.getPokedexBonusInfo();
+        const ids = Object.keys(POKEMON_DATA);
+        const sixVCount = ids.filter(id => this.game.gameState.pokedex[id] === 'caught' && this.game.isPokemonSixIV(id)).length;
+        const shinyCount = ids.filter(id => this.game.gameState.pokedex[id] === 'caught' && this.game.gameState.shinyDex[id]).length;
+        const milestones = POKEDEX_STAT_MILESTONES;
+        const reachedMilestones = milestones.filter(threshold => info.caught >= threshold).length;
+        const milestoneBonus = this.game.getPokedexStatMilestoneBonus();
+        const formatPercent = value => `${(value * 100).toFixed(3).replace(/\.?0+$/, '')}%`;
+        const caughtRate = info.caught * POKEDEX_BONUS_PER_CAUGHT;
+        const rewards = [
+            { title: '捕獲累積', progress: `${info.caught}/${info.total}`, amount: `每項 +${formatPercent(POKEDEX_BONUS_PER_CAUGHT)}`, detail: `目前累積 +${formatPercent(caughtRate)}`, complete: info.isComplete },
+            { title: '全圖鑑捕獲', progress: `${info.caught}/${info.total}`, amount: `完成 +${formatPercent(POKEDEX_COMPLETE_BONUS)}`, detail: info.isComplete ? '已完成' : '尚未完成', complete: info.isComplete },
+            { title: '全圖鑑 6V', progress: `${sixVCount}/${info.total}`, amount: `完成 +${formatPercent(POKEDEX_ALL_SIX_IV_BONUS)}`, detail: info.allSixIV ? '已完成' : '尚未完成', complete: info.allSixIV },
+            { title: '全圖鑑閃光', progress: `${shinyCount}/${info.total}`, amount: `完成 +${formatPercent(POKEDEX_ALL_SHINY_BONUS)}`, detail: info.allShiny ? '已完成' : '尚未完成', complete: info.allShiny },
+            { title: '全圖鑑 6V＋閃光', progress: `${sixVCount}/${info.total} 6V · ${shinyCount}/${info.total} 閃光`, amount: `完成 +${formatPercent(POKEDEX_ALL_SIX_IV_SHINY_BONUS)}`, detail: info.allSixIVShiny ? '已完成' : '尚未完成', complete: info.allSixIVShiny },
+        ];
+        const milestoneLabels = milestones.map((threshold, index) =>
+            `<span class="pokedex-milestone${info.caught >= threshold ? ' reached' : ''}" aria-label="第 ${index + 1} 階，${threshold} 隻${info.caught >= threshold ? '已達成' : '尚未達成'}">第 ${index + 1} 階 · ${threshold} 隻</span>`
+        ).join('');
+
+        panel.innerHTML = `
+            <div class="pokedex-reward-heading">
+                <h3 id="pokedex-reward-title">🏅 圖鑑能力獎勵</h3>
+                <strong>目前總加成 +${formatPercent(info.rate)}</strong>
+            </div>
+            <div class="pokedex-reward-grid">${rewards.map(reward => `
+                <div class="pokedex-reward-card${reward.complete ? ' complete' : ''}">
+                    <div class="pokedex-reward-card-heading"><strong>${reward.title}</strong><span>${reward.complete ? '已達成' : reward.progress}</span></div>
+                    <div class="pokedex-reward-amount">${reward.amount}</div>
+                    <small>${reward.detail}</small>
+                </div>`).join('')}
+            </div>
+            <div class="pokedex-milestone-row">
+                <strong>種族值里程碑：${reachedMilestones}/${milestones.length} 階（六項各 +${milestoneBonus}）</strong>
+                <div class="pokedex-milestone-list">${milestoneLabels}</div>
+            </div>`;
     }
 
     /**
@@ -2245,7 +2643,7 @@ class GameUI {
                     </div>
                 `;
             } else if (status === 'seen') {
-                const typeBadges = (data.types || []).map(t =>
+                const typeBadges = this.game.getPokemonTypes(id).map(t =>
                     `<span class="type-badge ${t}">${TYPE_NAMES[t] || t}</span>`
                 ).join(' ');
 
@@ -2262,22 +2660,34 @@ class GameUI {
             } else {
                 // caught - 顯示完整詳情
             const inTeam = teamSet.has(id);
+            const fusionLocked = this.game.isFusionLockedPokemon(id);
+const isKyuremFused = Number(id) === 646 && this.game.isKyuremFused();
+const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
             const hasShiny = this.game.gameState.shinyDex[id];
-            const isShowingShiny = this.game.gameState.pokedexDisplay[id] === 'shiny';
+            const isShowingShiny = Number(id) === 800 && this.game.isNecrozmaFused()
+                ? !!this.game.gameState.necrozmaFusionShiny
+                : Number(id) === 898 && this.game.isCalyrexFused()
+                    ? !!this.game.gameState.calyrexFusionShiny
+                    : this.game.gameState.pokedexDisplay[id] === 'shiny';
             const deoxysForm = this.game.gameState.pokemonForms?.[386] || 'normal';
             const deoxysFormNames = { normal: '普通', attack: '攻擊', defense: '防禦', speed: '速度' };
 
-                const typeBadges = (data.types || []).map(t =>
+            const typeBadges = this.game.getPokemonTypes(id).map(t =>
                     `<span class="type-badge ${t}">${TYPE_NAMES[t] || t}</span>`
                 ).join(' ');
 
-                // 獲取該寶可夢的儲存資料
-                const storedData = this.game.getStoredData(id);
+        // 獲取該寶可夢的儲存資料
+        const storedData = this.game.getStoredData(id);
+        const is6V = !!storedData?.ivs && ['hp', 'atk', 'def', 'spAtk', 'spDef', 'speed'].every(stat => storedData.ivs[stat] === 31);
                 
                 // 使用圖鑑展示偏好的精靈圖
-            const spriteUrl = Number(id) === 386
-                ? getDeoxysSpriteUrl(deoxysForm, isShowingShiny)
+            const form = this.game.getPokemonForm(id);
+            const spriteUrl = POKEMON_FORM_DATA[id] || Number(id) === 386 || isKyuremFused
+                ? getPokemonFormSpriteUrl(id, form, isShowingShiny, isKyuremOverdrive)
                 : this.game.getPokedexSpriteUrl(id);
+            const displayName = isKyuremFused || Number(id) === 800 || Number(id) === 898
+                ? this.game.getPokemonFormData(id)?.name || data.name
+                : data.name;
                 
                 // 使用快取的戰力和潛力（若有），否則現算
                 const cached = this._pokedexCache[id];
@@ -2325,9 +2735,11 @@ class GameUI {
                 ` : '';
 
                 // 按鈕邏輯：在隊伍中顯示"離開隊伍"，不在隊伍中顯示"加入隊伍"
-                let buttonHtml = '';
-                if (inTeam) {
-                    buttonHtml = `<button class="dex-remove-btn" data-pokemon-id="${id}">- 離開隊伍</button>`;
+            let buttonHtml = '';
+            if (inTeam) {
+                buttonHtml = fusionLocked
+                    ? '<button class="dex-remove-btn" type="button" disabled>合體中</button>'
+                    : `<button class="dex-remove-btn" data-pokemon-id="${id}">- 離開隊伍</button>`;
                 } else {
                     buttonHtml = `<button class="dex-add-btn" data-pokemon-id="${id}">+ 加入隊伍</button>`;
                 }
@@ -2343,14 +2755,15 @@ class GameUI {
                         <div class="dex-sprite${isShowingShiny ? ' shiny' : ''}"><img loading="lazy" src="${spriteUrl}" alt="${data.name}" onerror="fallbackPokemonSprite(this, ${id}, ${!!isShowingShiny}, '?')"></div>
                         <div class="dex-header-info">
                             <div class="dex-number">#${String(id).padStart(3, '0')}</div>
-                            <div class="dex-name">${data.name}${Number(id) === 386 ? `（${deoxysFormNames[deoxysForm] || '普通'}形態）` : ''}${hasShiny ? ' ✨' : ''}</div>
+                            <div class="dex-name">${displayName}${[800, 898].includes(Number(id)) ? '' : POKEMON_FORM_DATA[id] ? `（${formatPokemonFormDisplayName(POKEMON_FORM_DATA[id].forms[form]?.name || '????')}）` : Number(id) === 386 ? `（${formatPokemonFormDisplayName(deoxysFormNames[deoxysForm] || '普通')}）` : ''}</div>
+                            ${(is6V || hasShiny || isKyuremOverdrive) ? `<div class="dex-markers">${is6V ? '<span class="route-badge-6v dex-6v-badge" title="六項個體值皆為 31">6V</span>' : ''}${hasShiny ? '<span class="dex-shiny-badge" title="已捕獲閃光">✨</span>' : ''}${isKyuremOverdrive ? '<span class="kyurem-overdrive-badge">超頻驅動</span>' : ''}</div>` : ''}
                             <div class="dex-types">${typeBadges}</div>
                         </div>
                         <div class="dex-header-actions">
-                            ${hasShiny ? `<button class="shiny-toggle-btn${isShowingShiny ? ' active' : ''}" data-pokemon-id="${id}" title="${isShowingShiny ? '切換為原始' : '切換為閃光'}">✨</button>` : ''}
+                            ${hasShiny && !(Number(id) === 898 && this.game.isCalyrexFused()) ? `<button class="shiny-toggle-btn${isShowingShiny ? ' active' : ''}" data-pokemon-id="${id}" title="${isShowingShiny ? '切換為原始' : '切換為閃光'}">✨</button>` : ''}
                             <div class="dex-team-action-stack">
                                 ${buttonHtml}
-                                ${Number(id) === 386 ? `<button class="dex-deoxys-form-btn" data-pokemon-id="${id}" title="選擇目前型態">型態</button>` : ''}
+                                ${![898, 1024].includes(Number(id)) && (POKEMON_FORM_DATA[id] || Number(id) === 386) ? `<button class="dex-deoxys-form-btn" data-pokemon-id="${id}" title="選擇目前型態">型態</button>` : ''}
                             </div>
                             ${skillBtnHtml}
                         </div>
@@ -2389,7 +2802,7 @@ class GameUI {
                 if (deoxysFormBtn) {
                     deoxysFormBtn.addEventListener('click', event => {
                         event.stopPropagation();
-                        this.showDeoxysFormDialog(386, 'pokedex');
+                        this.showDeoxysFormDialog(id, 'pokedex');
                     });
                 }
 
@@ -2493,7 +2906,7 @@ class GameUI {
 
         return `
             <div class="dex-berry-section">
-                <div class="dex-stats-title">🌱 樹果加成 (已喂${berryTotal}個)</div>
+            <div class="dex-stats-title">🌱 樹果加成（已餵${berryTotal}/${Object.keys(BERRY_DATA).length * BERRY_MAX_PER_TYPE}顆）</div>
                 <div class="dex-stats-grid berry-grid">${berryItemsHtml}</div>
                 ${feedHtml}
             </div>`;
@@ -2694,7 +3107,7 @@ class GameUI {
                 <div class="berry-plant-icon" style="background:${berry.color}20;border-color:${berry.color}">${berry.icon}</div>
                 <div class="berry-plant-info">
                     <div class="berry-plant-name">${berry.name}種子</div>
-                    <div class="berry-plant-effect">提升${this._getStatName(berry.stat)} +${BERRY_STAT_BONUS}/個 (上限${BERRY_STAT_CAP})</div>
+                    <div class="berry-plant-effect">提升${this._getStatName(berry.stat)}（最多${BERRY_MAX_PER_TYPE}顆，餵滿後加倍）</div>
                     <div class="berry-plant-stock">💰 ${BERRY_SEED_PRICE.toLocaleString()} 金幣</div>
                 </div>
                 ${canPlant ? `<button class="berry-plant-btn" data-berry-id="${berryId}">購買種植</button>` : `<span class="berry-plant-disabled">${plotsFull ? '空地已滿' : '金幣不足'}</span>`}
@@ -3393,6 +3806,15 @@ class GameUI {
         const tableEl = document.getElementById('skill-table-content');
         if (tableEl) {
             let html = '';
+            const maxSkillLevelByType = {};
+            for (const [id, stored] of Object.entries(this.game.gameState.caughtPokemon || {})) {
+                const skillLevel = Number(stored?.skillLevel) || 0;
+                if (skillLevel < 1) continue;
+                for (const type of this.game.getPokemonTypes(Number(id))) {
+                    maxSkillLevelByType[type] = Math.max(maxSkillLevelByType[type] || 0, skillLevel);
+                }
+            }
+
             for (const type in SKILL_DATA) {
                 const typeName = TYPE_NAMES[type] || type;
                 const skills = SKILL_DATA[type];
@@ -3400,13 +3822,13 @@ class GameUI {
                     <div class="skill-type-group">
                         <div class="skill-type-header">
                             <span class="type-badge ${type}">${typeName}</span>
-                        </div>
-                        <div class="skill-type-table">
-                            ${skills.map(s => `
-                                <div class="skill-row">
-                                    <span class="skill-level-tag">Lv.${s.level}</span>
-                                    <span class="skill-name">${s.name}</span>
-                                    <span class="skill-power">威力 ${s.power}</span>
+                    </div>
+                    <div class="skill-type-table">
+                        ${skills.map(s => `
+                            <div class="skill-row${s.level > (maxSkillLevelByType[type] || 0) ? ' locked' : ''}">
+                                <span class="skill-level-tag">Lv.${s.level}</span>
+                                <span class="skill-name">${s.name}</span>
+                                <span class="skill-power">威力 ${s.power}</span>
                                 </div>
                             `).join('')}
                         </div>

@@ -13,3 +13,15 @@ Object.assign(SPRITE_SQUARE_BOUNDS, {
     '1024.gif': [256, 256, 246, 221, 0, 12, 256, 243],
     'shiny/1024.gif': [256, 256, 246, 221, 0, 12, 256, 243],
 });
+
+// 焰白酋雷姆的普通與超頻動圖：使用各動畫幀透明像素的中位可見範圍。
+Object.assign(SPRITE_ANIMATION_BOUNDS, {
+    'animated/forms/normal/kyurem-black.gif': [124, 132, 119, 131],
+    'animated/forms/shiny/kyurem-black.gif': [124, 132, 119, 131],
+    'animated/forms/normal/kyurem-black-overdrive.gif': [105, 106, 96, 95],
+    'animated/forms/shiny/kyurem-black-overdrive.gif': [105, 106, 96, 95],
+    'animated/forms/normal/kyurem-white.gif': [141, 133, 134, 128],
+    'animated/forms/shiny/kyurem-white.gif': [141, 133, 134, 128],
+    'animated/forms/normal/kyurem-white-overdrive.gif': [104, 95, 98, 91],
+    'animated/forms/shiny/kyurem-white-overdrive.gif': [104, 95, 98, 91],
+});

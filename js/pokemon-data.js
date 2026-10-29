@@ -1204,6 +1204,230 @@ const POKEMON_DATA = {
     1073: { id: 1073, name: 'Mega蒂安希', types: ['rock', 'fairy'], baseStats: { hp: 50, atk: 160, def: 110, spAtk: 160, spDef: 110, speed: 110 }, expGroup: 'slow' },
 };
 
+// 可由玩家直接選擇的型態；表單資料統一供戰鬥、圖鑑與型態視窗使用。
+const POKEMON_FORM_DATA = {
+    681: { defaultForm: 'shield', forms: {
+        shield: { name: '盾牌形態', sprite: 'aegislash', types: ['steel', 'ghost'], baseStats: { hp: 60, atk: 50, def: 140, spAtk: 50, spDef: 140, speed: 60 } },
+        blade: { name: '刀劍形態', sprite: 'aegislash-blade', types: ['steel', 'ghost'], baseStats: { hp: 60, atk: 140, def: 50, spAtk: 140, spDef: 50, speed: 60 } },
+    } },
+    741: { defaultForm: 'baile', forms: {
+        baile: { name: '熱辣熱辣風格', displayName: '花舞鳥', sprite: 'oricorio-baile', types: ['fire', 'flying'], baseStats: { hp: 75, atk: 70, def: 70, spAtk: 98, spDef: 70, speed: 93 } },
+        'pom-pom': { name: '啪滋啪滋風格', displayName: '花舞鳥', sprite: 'oricorio-pom-pom', types: ['electric', 'flying'], baseStats: { hp: 75, atk: 70, def: 70, spAtk: 98, spDef: 70, speed: 93 } },
+        'pa-u': { name: '呼拉呼拉風格', displayName: '花舞鳥', sprite: 'oricorio-pa-u', types: ['psychic', 'flying'], baseStats: { hp: 75, atk: 70, def: 70, spAtk: 98, spDef: 70, speed: 93 } },
+        sensu: { name: '輕盈輕盈風格', displayName: '花舞鳥', sprite: 'oricorio-sensu', types: ['ghost', 'flying'], baseStats: { hp: 75, atk: 70, def: 70, spAtk: 98, spDef: 70, speed: 93 } },
+    } },
+    849: { defaultForm: 'amped', forms: {
+        amped: { name: '高調的樣子', displayName: '顫弦蠑螈', sprite: 'toxtricity-amped', types: ['electric', 'poison'], baseStats: { hp: 75, atk: 98, def: 70, spAtk: 114, spDef: 70, speed: 75 } },
+        'low-key': { name: '低調的樣子', displayName: '顫弦蠑螈', sprite: 'toxtricity-low-key', types: ['electric', 'poison'], baseStats: { hp: 75, atk: 98, def: 70, spAtk: 114, spDef: 70, speed: 75 } },
+    } },
+    902: { defaultForm: 'male', forms: {
+        male: { name: '雄性的樣子', displayName: '幽尾玄魚', sprite: 'basculegion-male', types: ['water', 'ghost'], baseStats: { hp: 120, atk: 112, def: 65, spAtk: 80, spDef: 75, speed: 78 } },
+        female: { name: '雌性的樣子', displayName: '幽尾玄魚', sprite: 'basculegion-female', types: ['water', 'ghost'], baseStats: { hp: 120, atk: 92, def: 65, spAtk: 100, spDef: 75, speed: 78 } },
+    } },
+    351: { defaultForm: 'normal', forms: {
+        normal: { name: '普通', sprite: 'castform', types: ['normal'], baseStats: { hp: 70, atk: 70, def: 70, spAtk: 70, spDef: 70, speed: 70 } },
+        sunny: { name: '晴天', sprite: 'castform-sunny', types: ['fire'], baseStats: { hp: 70, atk: 70, def: 70, spAtk: 70, spDef: 70, speed: 70 } },
+        rainy: { name: '雨水', sprite: 'castform-rainy', types: ['water'], baseStats: { hp: 70, atk: 70, def: 70, spAtk: 70, spDef: 70, speed: 70 } },
+        snowy: { name: '雪雲', sprite: 'castform-snowy', types: ['ice'], baseStats: { hp: 70, atk: 70, def: 70, spAtk: 70, spDef: 70, speed: 70 } },
+    } },
+    421: { defaultForm: 'overcast', forms: {
+        overcast: { name: '陰天', sprite: 'cherrim', types: ['grass'], baseStats: { hp: 70, atk: 60, def: 70, spAtk: 87, spDef: 78, speed: 85 } },
+        sunshine: { name: '晴天', sprite: 'cherrim-sunshine', types: ['grass'], baseStats: { hp: 70, atk: 60, def: 70, spAtk: 87, spDef: 78, speed: 85 } },
+    } },
+    746: { defaultForm: 'solo', wildForm: 'solo', forms: {
+        solo: { name: '單獨形態', sprite: 'wishiwashi', types: ['water'], baseStats: { hp: 45, atk: 20, def: 20, spAtk: 25, spDef: 25, speed: 40 } },
+        school: { name: '魚群形態', sprite: 'wishiwashi-school', height: 82, types: ['water'], baseStats: { hp: 45, atk: 140, def: 130, spAtk: 140, spDef: 135, speed: 30 } },
+    } },
+    877: { defaultForm: 'full-belly', forms: {
+        'full-belly': { name: '滿腹花紋', sprite: 'morpeko', types: ['electric', 'dark'], baseStats: { hp: 58, atk: 95, def: 58, spAtk: 70, spDef: 58, speed: 97 } },
+        hangry: { name: '空腹花紋', sprite: 'morpeko-hangry', types: ['electric', 'dark'], baseStats: { hp: 58, atk: 95, def: 58, spAtk: 70, spDef: 58, speed: 97 } },
+    } },
+    774: { defaultForm: 'meteor', forms: {
+        meteor: { name: '流星形態', sprite: 'minior-meteor', types: ['rock', 'flying'], baseStats: { hp: 60, atk: 60, def: 100, spAtk: 60, spDef: 100, speed: 60 } },
+        red: { name: '紅核心形態', sprite: 'minior', types: ['rock', 'flying'], baseStats: { hp: 60, atk: 100, def: 60, spAtk: 100, spDef: 60, speed: 120 } },
+        orange: { name: '橙核心形態', sprite: 'minior-orange', types: ['rock', 'flying'], baseStats: { hp: 60, atk: 100, def: 60, spAtk: 100, spDef: 60, speed: 120 } },
+        yellow: { name: '黃核心形態', sprite: 'minior-yellow', types: ['rock', 'flying'], baseStats: { hp: 60, atk: 100, def: 60, spAtk: 100, spDef: 60, speed: 120 } },
+        green: { name: '綠核心形態', sprite: 'minior-green', types: ['rock', 'flying'], baseStats: { hp: 60, atk: 100, def: 60, spAtk: 100, spDef: 60, speed: 120 } },
+        blue: { name: '藍核心形態', sprite: 'minior-blue', types: ['rock', 'flying'], baseStats: { hp: 60, atk: 100, def: 60, spAtk: 100, spDef: 60, speed: 120 } },
+        indigo: { name: '靛核心形態', sprite: 'minior-indigo', types: ['rock', 'flying'], baseStats: { hp: 60, atk: 100, def: 60, spAtk: 100, spDef: 60, speed: 120 } },
+        violet: { name: '紫核心形態', sprite: 'minior-violet', types: ['rock', 'flying'], baseStats: { hp: 60, atk: 100, def: 60, spAtk: 100, spDef: 60, speed: 120 } },
+    } },
+    555: { defaultForm: 'standard', forms: {
+        standard: { name: '普通形態', sprite: 'darmanitan', types: ['fire'], baseStats: { hp: 105, atk: 140, def: 55, spAtk: 30, spDef: 55, speed: 95 } },
+        zen: { name: '達摩形態', sprite: 'darmanitan-zen', types: ['fire', 'psychic'], baseStats: { hp: 105, atk: 30, def: 105, spAtk: 140, spDef: 105, speed: 55 } },
+        galar: { name: '伽勒爾普通形態', sprite: 'darmanitan-galar', types: ['ice'], baseStats: { hp: 105, atk: 140, def: 55, spAtk: 30, spDef: 55, speed: 95 }, unlock: 'galarDex', unlockText: '完成伽勒爾圖鑑' },
+        'galar-zen': { name: '伽勒爾達摩形態', sprite: 'darmanitan-galarzen', types: ['ice', 'fire'], baseStats: { hp: 105, atk: 160, def: 55, spAtk: 30, spDef: 55, speed: 135 }, unlock: 'galarDex', unlockText: '完成伽勒爾圖鑑' },
+    } },
+    676: { defaultForm: 'natural', forms: {
+        natural: { name: '自然蓬鬆', sprite: 'furfrou', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+        heart: { name: '心形修剪', sprite: 'furfrou-heart', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+        star: { name: '星形修剪', sprite: 'furfrou-star', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+        diamond: { name: '鑽石修剪', sprite: 'furfrou-diamond', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+        debutante: { name: '淑女修剪', sprite: 'furfrou-debutante', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+        dandy: { name: '紳士修剪', sprite: 'furfrou-dandy', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+        lareine: { name: '女王修剪', sprite: 'furfrou-lareine', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+        kabuki: { name: '歌舞伎修剪', sprite: 'furfrou-kabuki', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+        pharaoh: { name: '國王修剪', sprite: 'furfrou-pharaoh', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+        matron: { name: '貴婦修剪', sprite: 'furfrou-matron', types: ['normal'], baseStats: { hp: 75, atk: 80, def: 60, spAtk: 65, spDef: 90, speed: 102 } },
+    } },
+    718: { defaultForm: '10', wildForm: '50', forms: {
+        '10': { name: '10%形態', sprite: 'zygarde-10', types: ['dragon', 'ground'], baseStats: { hp: 54, atk: 100, def: 71, spAtk: 61, spDef: 85, speed: 115 } },
+        '50': { name: '50%形態', sprite: 'zygarde', types: ['dragon', 'ground'], baseStats: { hp: 108, atk: 100, def: 121, spAtk: 81, spDef: 95, speed: 95 }, unlock: 'zygarde50' },
+        complete: { name: '完全體（100%）', sprite: 'zygarde-complete', types: ['dragon', 'ground'], baseStats: { hp: 216, atk: 100, def: 121, spAtk: 91, spDef: 95, speed: 85 }, unlock: 'zygardeComplete' },
+    } },
+    641: { defaultForm: 'incarnate', forms: {
+        incarnate: { name: '化身形態', sprite: 'tornadus', types: ['flying'], baseStats: { hp: 79, atk: 115, def: 70, spAtk: 125, spDef: 80, speed: 111 } },
+        therian: { name: '靈獸形態', sprite: 'tornadus-therian', types: ['flying'], baseStats: { hp: 79, atk: 100, def: 80, spAtk: 110, spDef: 90, speed: 121 } },
+    } },
+    642: { defaultForm: 'incarnate', forms: {
+        incarnate: { name: '化身形態', sprite: 'thundurus', types: ['electric', 'flying'], baseStats: { hp: 79, atk: 115, def: 70, spAtk: 125, spDef: 80, speed: 111 } },
+        therian: { name: '靈獸形態', sprite: 'thundurus-therian', types: ['electric', 'flying'], baseStats: { hp: 79, atk: 105, def: 70, spAtk: 145, spDef: 80, speed: 101 } },
+    } },
+    645: { defaultForm: 'incarnate', forms: {
+        incarnate: { name: '化身形態', sprite: 'landorus', types: ['ground', 'flying'], baseStats: { hp: 89, atk: 125, def: 90, spAtk: 115, spDef: 80, speed: 101 } },
+        therian: { name: '靈獸形態', sprite: 'landorus-therian', types: ['ground', 'flying'], baseStats: { hp: 89, atk: 145, def: 90, spAtk: 105, spDef: 80, speed: 91 } },
+    } },
+    647: { defaultForm: 'ordinary', forms: {
+        ordinary: { name: '平常形態', sprite: 'keldeo', types: ['water', 'fighting'], baseStats: { hp: 91, atk: 72, def: 90, spAtk: 129, spDef: 90, speed: 108 } },
+        resolute: { name: '覺悟形態', sprite: 'keldeo-resolute', types: ['water', 'fighting'], baseStats: { hp: 91, atk: 72, def: 90, spAtk: 129, spDef: 90, speed: 108 } },
+    } },
+    649: { defaultForm: 'normal', forms: {
+        normal: { name: '普通型態', sprite: 'genesect', types: ['bug', 'steel'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
+        shock: { name: '閃電卡帶', sprite: 'genesect', types: ['bug', 'electric'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
+        burn: { name: '火焰卡帶', sprite: 'genesect-burn', types: ['bug', 'fire'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
+        chill: { name: '冰凍卡帶', sprite: 'genesect-chill', types: ['bug', 'ice'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
+        douse: { name: '水流卡帶', sprite: 'genesect-douse', types: ['bug', 'water'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
+    } },
+    479: { defaultForm: 'normal', forms: {
+        normal: { name: '普通形態', sprite: 'rotom', types: ['electric', 'ghost'], baseStats: { hp: 50, atk: 50, def: 77, spAtk: 95, spDef: 77, speed: 91 } },
+        heat: { name: '加熱洛托姆', sprite: 'rotom-heat', types: ['electric', 'fire'], baseStats: { hp: 50, atk: 65, def: 107, spAtk: 105, spDef: 107, speed: 86 } },
+        wash: { name: '清洗洛托姆', sprite: 'rotom-wash', types: ['electric', 'water'], baseStats: { hp: 50, atk: 65, def: 107, spAtk: 105, spDef: 107, speed: 86 } },
+        frost: { name: '結冰洛托姆', sprite: 'rotom-frost', types: ['electric', 'ice'], baseStats: { hp: 50, atk: 65, def: 107, spAtk: 105, spDef: 107, speed: 86 } },
+        fan: { name: '旋轉洛托姆', sprite: 'rotom-fan', types: ['electric', 'flying'], baseStats: { hp: 50, atk: 65, def: 107, spAtk: 105, spDef: 107, speed: 86 } },
+        mow: { name: '切割洛托姆', sprite: 'rotom-mow', types: ['electric', 'grass'], baseStats: { hp: 50, atk: 65, def: 107, spAtk: 105, spDef: 107, speed: 86 } },
+    } },
+    492: { defaultForm: 'land', forms: {
+        land: { name: '陸上形態', sprite: 'shaymin', types: ['grass'], baseStats: { hp: 100, atk: 100, def: 100, spAtk: 100, spDef: 100, speed: 100 } },
+        sky: { name: '天空形態', sprite: 'shaymin-sky', types: ['grass', 'flying'], baseStats: { hp: 100, atk: 103, def: 75, spAtk: 120, spDef: 75, speed: 127 } },
+    } },
+    745: { defaultForm: 'midday', forms: {
+        midday: { name: '白晝形態', sprite: 'lycanroc', types: ['rock'], baseStats: { hp: 75, atk: 115, def: 65, spAtk: 55, spDef: 65, speed: 112 } },
+        midnight: { name: '黑夜形態', sprite: 'lycanroc-midnight', types: ['rock'], baseStats: { hp: 85, atk: 115, def: 75, spAtk: 55, spDef: 75, speed: 82 } },
+        dusk: { name: '黃昏形態', sprite: 'lycanroc-dusk', types: ['rock'], baseStats: { hp: 75, atk: 117, def: 65, spAtk: 55, spDef: 65, speed: 110 } },
+    } },
+    487: { defaultForm: 'altered', forms: {
+        altered: { name: '普通形態', sprite: 'giratina', types: ['ghost', 'dragon'], baseStats: { hp: 150, atk: 100, def: 120, spAtk: 100, spDef: 120, speed: 90 } },
+        origin: { name: '起源形態', sprite: 'giratina-origin', types: ['ghost', 'dragon'], baseStats: { hp: 150, atk: 120, def: 100, spAtk: 120, spDef: 100, speed: 90 }, unlock: 'formCatch487', unlockText: '捕獲該物種的 6V 與閃光' },
+    } },
+    383: { defaultForm: 'land', forms: {
+        land: { name: '普通形態', sprite: 'groudon', types: ['ground'], baseStats: { hp: 100, atk: 150, def: 140, spAtk: 100, spDef: 90, speed: 90 } },
+        primal: { name: '原始回歸', sprite: 'groudon-primal', types: ['ground', 'fire'], baseStats: { hp: 100, atk: 180, def: 160, spAtk: 150, spDef: 90, speed: 90 }, unlock: 'formCatch383', unlockText: '捕獲該物種的 6V 與閃光' },
+    } },
+    382: { defaultForm: 'sea', forms: {
+        sea: { name: '普通形態', sprite: 'kyogre', types: ['water'], baseStats: { hp: 100, atk: 100, def: 90, spAtk: 150, spDef: 140, speed: 90 } },
+        primal: { name: '原始回歸', sprite: 'kyogre-primal', types: ['water'], baseStats: { hp: 100, atk: 150, def: 90, spAtk: 180, spDef: 160, speed: 90 }, unlock: 'formCatch382', unlockText: '捕獲該物種的 6V 與閃光' },
+    } },
+    888: { defaultForm: 'hero', forms: {
+        hero: { name: '百戰勇者', sprite: 'zacian', types: ['fairy'], baseStats: { hp: 92, atk: 120, def: 115, spAtk: 80, spDef: 115, speed: 138 } },
+        crowned: { name: '劍之王', sprite: 'zacian-crowned', types: ['fairy', 'steel'], baseStats: { hp: 92, atk: 150, def: 115, spAtk: 80, spDef: 115, speed: 148 }, unlock: 'formCatch888', unlockText: '捕獲該物種的 6V 與閃光' },
+    } },
+    889: { defaultForm: 'hero', forms: {
+        hero: { name: '百戰勇者', sprite: 'zamazenta', types: ['fighting'], baseStats: { hp: 92, atk: 120, def: 115, spAtk: 80, spDef: 115, speed: 138 } },
+        crowned: { name: '盾之王', sprite: 'zamazenta-crowned', types: ['fighting', 'steel'], baseStats: { hp: 92, atk: 120, def: 140, spAtk: 80, spDef: 140, speed: 128 }, unlock: 'formCatch889', unlockText: '捕獲該物種的 6V 與閃光' },
+    } },
+    1017: { defaultForm: 'teal', forms: {
+        teal: { name: '碧草面具', sprite: '1017', types: ['grass'], baseStats: { hp: 80, atk: 120, def: 84, spAtk: 60, spDef: 96, speed: 110 } },
+        wellspring: { name: '水井面具', sprite: 'ogerpon-wellspring', types: ['grass', 'water'], baseStats: { hp: 80, atk: 120, def: 84, spAtk: 60, spDef: 96, speed: 110 }, unlock: 'formCatch1017', unlockText: '捕獲該物種的 6V 與閃光' },
+        hearthflame: { name: '火灶面具', sprite: 'ogerpon-hearthflame', types: ['grass', 'fire'], baseStats: { hp: 80, atk: 120, def: 84, spAtk: 60, spDef: 96, speed: 110 }, unlock: 'formCatch1017', unlockText: '捕獲該物種的 6V 與閃光' },
+        cornerstone: { name: '礎石面具', sprite: 'ogerpon-cornerstone', types: ['grass', 'rock'], baseStats: { hp: 80, atk: 120, def: 84, spAtk: 60, spDef: 96, speed: 110 }, unlock: 'formCatch1017', unlockText: '捕獲該物種的 6V 與閃光' },
+    } },
+    720: { defaultForm: 'confined', forms: {
+        confined: { name: '懲戒形態', sprite: 'hoopa', types: ['psychic', 'ghost'], baseStats: { hp: 80, atk: 110, def: 60, spAtk: 150, spDef: 130, speed: 70 } },
+        unbound: { name: '解放形態', sprite: 'hoopa-unbound', types: ['psychic', 'dark'], baseStats: { hp: 80, atk: 160, def: 60, spAtk: 170, spDef: 130, speed: 80 }, unlock: 'formCatch720', unlockText: '捕獲該物種的 6V 與閃光' },
+    } },
+    905: { defaultForm: 'incarnate', forms: {
+        incarnate: { name: '化身形態', sprite: 'enamorus', types: ['fairy', 'flying'], baseStats: { hp: 74, atk: 115, def: 70, spAtk: 135, spDef: 80, speed: 106 } },
+        therian: { name: '靈獸形態', sprite: 'enamorus-therian', types: ['fairy', 'flying'], baseStats: { hp: 74, atk: 115, def: 110, spAtk: 135, spDef: 100, speed: 46 } },
+    } },
+    493: { defaultForm: 'normal', forms: Object.fromEntries([
+        ['normal', '一般'], ['fire', '火'], ['water', '水'], ['electric', '電'], ['grass', '草'], ['ice', '冰'],
+        ['fighting', '格鬥'], ['poison', '毒'], ['ground', '地面'], ['flying', '飛行'], ['psychic', '超能力'], ['bug', '蟲'],
+        ['rock', '岩石'], ['ghost', '幽靈'], ['dragon', '龍'], ['dark', '惡'], ['steel', '鋼'], ['fairy', '妖精'],
+    ].map(([type, typeName]) => [type, {
+        name: `${typeName}屬性`, sprite: type === 'normal' ? 'arceus' : `arceus-${type}`, types: [type],
+        baseStats: { hp: 120, atk: 120, def: 120, spAtk: 120, spDef: 120, speed: 120 },
+        ...(type === 'normal' ? {} : { unlock: 'formCatch493', unlockText: '捕獲該物種的 6V 與閃光' }),
+    }])) },
+    412: { defaultForm: 'plant', forms: {
+        plant: { name: '草木蓑衣', sprite: 'burmy', types: ['bug'], baseStats: { hp: 40, atk: 29, def: 45, spAtk: 29, spDef: 45, speed: 36 } },
+        sandy: { name: '砂土蓑衣', sprite: 'burmy-sandy', types: ['bug'], baseStats: { hp: 40, atk: 29, def: 45, spAtk: 29, spDef: 45, speed: 36 } },
+        trash: { name: '垃圾蓑衣', sprite: 'burmy-trash', types: ['bug'], baseStats: { hp: 40, atk: 29, def: 45, spAtk: 29, spDef: 45, speed: 36 } },
+    } },
+    413: { defaultForm: 'plant', forms: {
+        plant: { name: '草木蓑衣', sprite: 'wormadam', types: ['bug', 'grass'], baseStats: { hp: 60, atk: 59, def: 85, spAtk: 79, spDef: 105, speed: 36 } },
+        sandy: { name: '砂土蓑衣', sprite: 'wormadam-sandy', types: ['bug', 'ground'], baseStats: { hp: 60, atk: 79, def: 105, spAtk: 59, spDef: 85, speed: 36 } },
+        trash: { name: '垃圾蓑衣', sprite: 'wormadam-trash', types: ['bug', 'steel'], baseStats: { hp: 60, atk: 69, def: 95, spAtk: 69, spDef: 95, speed: 36 } },
+    } },
+    648: { defaultForm: 'aria', forms: {
+        aria: { name: '歌聲形態', sprite: 'meloetta', types: ['normal', 'psychic'], baseStats: { hp: 100, atk: 77, def: 77, spAtk: 128, spDef: 128, speed: 90 } },
+        pirouette: { name: '舞步形態', sprite: 'meloetta-pirouette', types: ['normal', 'fighting'], baseStats: { hp: 100, atk: 128, def: 90, spAtk: 77, spDef: 77, speed: 128 } },
+    } },
+    892: { defaultForm: 'single-strike', forms: {
+        'single-strike': { name: '一擊流', sprite: 'urshifu', types: ['fighting', 'dark'], baseStats: { hp: 100, atk: 130, def: 100, spAtk: 63, spDef: 60, speed: 97 } },
+        'rapid-strike': { name: '連擊流', sprite: 'urshifu-rapidstrike', types: ['fighting', 'water'], baseStats: { hp: 100, atk: 130, def: 100, spAtk: 63, spDef: 60, speed: 97 } },
+    } },
+    800: { defaultForm: 'normal', forms: {
+        normal: { name: '奈克洛茲瑪', sprite: 'necrozma', types: ['psychic'], baseStats: { hp: 97, atk: 107, def: 101, spAtk: 127, spDef: 89, speed: 79 } },
+        'dusk-mane': { name: '黃昏之鬃', sprite: 'necrozma-dusk-mane', types: ['psychic', 'steel'], fusionPartner: 791, baseStats: { hp: 97, atk: 157, def: 127, spAtk: 113, spDef: 109, speed: 77 } },
+        'dawn-wings': { name: '拂曉之翼', sprite: 'necrozma-dawn-wings', types: ['psychic', 'ghost'], fusionPartner: 792, baseStats: { hp: 97, atk: 113, def: 109, spAtk: 157, spDef: 127, speed: 77 } },
+        ultra: { name: '究極奈克洛茲瑪', sprite: 'necrozma-ultra', types: ['psychic', 'dragon'], unlock: 'formCatch800', unlockText: '捕獲奈克洛茲瑪的 6V 與閃光', baseStats: { hp: 97, atk: 167, def: 97, spAtk: 167, spDef: 97, speed: 129 } },
+    } },
+    898: { defaultForm: 'normal', forms: {
+        normal: { name: '蕾冠王', sprite: 'calyrex', types: ['psychic', 'grass'], baseStats: { hp: 100, atk: 80, def: 80, spAtk: 80, spDef: 80, speed: 80 } },
+        'ice-rider': { name: '蕾冠王', sprite: 'calyrex-ice-rider', types: ['psychic', 'ice'], fusionPartner: 896, baseStats: { hp: 100, atk: 165, def: 150, spAtk: 85, spDef: 130, speed: 50 } },
+        'shadow-rider': { name: '蕾冠王', sprite: 'calyrex-shadow-rider', types: ['psychic', 'ghost'], fusionPartner: 897, baseStats: { hp: 100, atk: 85, def: 80, spAtk: 165, spDef: 100, speed: 150 } },
+    } },
+    1024: { defaultForm: 'normal', forms: {
+        normal: { name: '普通形態', displayName: '太樂巴戈斯', sprite: 'terapagos-normal', types: ['normal'], baseStats: { hp: 90, atk: 65, def: 85, spAtk: 65, spDef: 85, speed: 60 } },
+        terastal: { name: '太晶形態', displayName: '太樂巴戈斯', sprite: 'terapagos-terastal', types: ['normal'], baseStats: { hp: 95, atk: 95, def: 110, spAtk: 105, spDef: 110, speed: 85 } },
+        stellar: { name: '星晶形態', displayName: '太樂巴戈斯', sprite: 'terapagos-stellar', types: ['normal'], baseStats: { hp: 160, atk: 105, def: 110, spAtk: 130, spDef: 110, speed: 85 } },
+    } },
+};
+
+const KYUREM_WHITE_FORM_DATA = {
+    name: '焰白酋雷姆',
+    sprite: 'kyurem-white',
+    types: ['dragon', 'ice'],
+    baseStats: { hp: 125, atk: 120, def: 90, spAtk: 170, spDef: 100, speed: 95 },
+};
+
+const KYUREM_BLACK_FORM_DATA = {
+    name: '闇黑酋雷姆',
+    sprite: 'kyurem-black',
+    types: ['dragon', 'ice'],
+    baseStats: { hp: 125, atk: 170, def: 100, spAtk: 120, spDef: 90, speed: 95 },
+};
+
+function getPokemonFormDefinition(pokemonId, form) {
+    const entry = POKEMON_FORM_DATA[pokemonId];
+    return entry?.forms?.[form] || entry?.forms?.[entry.defaultForm] || null;
+}
+
+function getPokemonFormSpriteUrl(pokemonId, form, shiny = false, overdrive = false) {
+    if (Number(pokemonId) === 646 && ['white', 'black'].includes(form)) {
+        const formName = form === 'black' ? 'black' : 'white';
+        return `sprites/animated/forms/${shiny ? 'shiny' : 'normal'}/kyurem-${formName}${overdrive ? '-overdrive' : ''}.gif`;
+    }
+    if (Number(pokemonId) === 386) return getDeoxysSpriteUrl(form, shiny);
+    const definition = getPokemonFormDefinition(pokemonId, form);
+    if (!definition) return shiny ? getShinyPokemonSpriteUrl(pokemonId) : getPokemonSpriteUrl(pokemonId);
+    if (Number(pokemonId) === 1017 && definition.sprite.startsWith('ogerpon-')) {
+        return `sprites/animated/forms/normal/${definition.sprite}.webp`;
+    }
+    if (/^\d+$/.test(definition.sprite)) return getLocalPokemonSpriteUrl(pokemonId, shiny);
+    return `sprites/animated/forms/${shiny ? 'shiny' : 'normal'}/${definition.sprite}.gif`;
+}
+
 // 經驗組所需經驗值計算（官方公式）
 const EXP_GROUPS = {
     fast: (n) => Math.floor(4 * Math.pow(n, 3) / 5),
@@ -1220,11 +1444,15 @@ function getExpForLevel(expGroup, level) {
 
 // 優先使用本機動圖，缺圖時由 fallbackPokemonSprite 回退至靜態圖片。
 function getPokemonSpriteUrl(id) {
+    if (Number(id) === 963) return 'sprites/animated/963.gif';
+    if (Number(id) === 964) return 'sprites/animated/forms/normal/palafin-hero.gif';
     return `sprites/animated-square/${id}.gif`;
 }
 
 // 獲取閃光寶可夢精靈圖片URL
 function getShinyPokemonSpriteUrl(id) {
+    if (Number(id) === 963) return 'sprites/animated/shiny/963.gif';
+    if (Number(id) === 964) return 'sprites/animated/forms/shiny/palafin-hero.gif';
     return `sprites/animated-square/shiny/${id}.gif`;
 }
 
@@ -1234,6 +1462,7 @@ function getDeoxysSpriteUrl(form = 'normal', shiny = false) {
 }
 
 function getLocalPokemonSpriteUrl(id, shiny = false) {
+    if (Number(id) === 964) return `sprites/animated/forms/${shiny ? 'shiny' : 'normal'}/palafin-hero.gif`;
     return `sprites/pokemon/${shiny ? 'shiny/' : ''}${id}.png`;
 }
 

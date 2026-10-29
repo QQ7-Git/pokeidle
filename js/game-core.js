@@ -407,7 +407,7 @@ class GameCore {
         // #4 快取玩家 level 和 types
         const storedData = this.getStoredData(activePokemonId);
         const cachedPlayerLevel = storedData ? storedData.level : 5;
-        const cachedPlayerTypes = POKEMON_DATA[activePokemonId]?.types || [];
+        const cachedPlayerTypes = this.getPokemonTypes(activePokemonId);
 
         // 模擬狀態
         const simState = {
@@ -472,7 +472,7 @@ class GameCore {
                         // #4 重新整理快取的 level 和 types
                         const sd = this.getStoredData(s.activePokemonId);
                         s.cachedPlayerLevel = sd ? sd.level : 5;
-                        s.cachedPlayerTypes = POKEMON_DATA[s.activePokemonId]?.types || [];
+                        s.cachedPlayerTypes = this.getPokemonTypes(s.activePokemonId);
                     }
                 }
             }
@@ -482,7 +482,7 @@ class GameCore {
             const enemyStats = this.calculateStats(wildPokemon);
             let enemyHp = enemyStats.hp;
             const enemyAttackInterval = this.getAttackInterval(enemyStats.speed);
-            const wildTypes = POKEMON_DATA[wildPokemon.id]?.types || [];
+            const wildTypes = this.getPokemonTypes(wildPokemon.id, wildPokemon);
 
             // 獲取最優技能（複用公共方法）
             const bestSkill = this._getBestSkillForEnemy(s.activePokemonId, wildTypes);
@@ -594,7 +594,7 @@ class GameCore {
                         // 重新整理快取的 level 和 types
                         const sd = this.getStoredData(s.activePokemonId);
                         s.cachedPlayerLevel = sd ? sd.level : 5;
-                        s.cachedPlayerTypes = POKEMON_DATA[s.activePokemonId]?.types || [];
+                        s.cachedPlayerTypes = this.getPokemonTypes(s.activePokemonId);
                         // 如果maxHp變了（升級），按比例調整當前血量
                         if (refreshedStats.hp !== oldMaxHp && oldMaxHp > 0) {
                             s.playerHp = Math.max(1, Math.floor(s.playerHp * refreshedStats.hp / oldMaxHp));
@@ -720,6 +720,308 @@ class GameCore {
         return this.gameState.caughtPokemon[pokemonId] || null;
     }
 
+    isWhiteKyuremFused() {
+        return this.getKyuremFusionPartner() === 643;
+    }
+
+    isBlackKyuremFused() {
+        return this.getKyuremFusionPartner() === 644;
+    }
+
+    isKyuremFused() {
+        return this.getKyuremFusionPartner() !== null;
+    }
+
+    getKyuremFusionPartner() {
+        if (!this.gameState?.kyuremFusion) return null;
+        const partnerId = Number(this.gameState.kyuremFusionPartner);
+        return [643, 644].includes(partnerId) ? partnerId : 643;
+    }
+
+    getKyuremFusionPartnersInTeam() {
+        return [643, 644].filter(id => this.gameState?.team?.includes(id));
+    }
+
+    isPokemonSixIV(pokemonId) {
+        const ivs = this.getStoredData(pokemonId)?.ivs;
+        return !!ivs && ['hp', 'atk', 'def', 'spAtk', 'spDef', 'speed'].every(stat => ivs[stat] === 31);
+    }
+
+    getPokedexBonusInfo() {
+        const ids = Object.keys(POKEMON_DATA);
+        const total = ids.length;
+        const pokedex = this.gameState?.pokedex || {};
+        const caught = ids.filter(id => pokedex[id] === 'caught').length;
+        const isComplete = caught === total;
+        const allSixIV = isComplete && ids.every(id => this.isPokemonSixIV(id));
+        const allShiny = isComplete && ids.every(id => !!this.gameState.shinyDex?.[id]);
+        const allSixIVShiny = allSixIV && allShiny;
+        const rate = caught * POKEDEX_BONUS_PER_CAUGHT
+            + (isComplete ? POKEDEX_COMPLETE_BONUS : 0)
+            + (allSixIV ? POKEDEX_ALL_SIX_IV_BONUS : 0)
+            + (allShiny ? POKEDEX_ALL_SHINY_BONUS : 0)
+            + (allSixIVShiny ? POKEDEX_ALL_SIX_IV_SHINY_BONUS : 0);
+
+        return { caught, total, isComplete, allSixIV, allShiny, allSixIVShiny, rate };
+    }
+
+    getPokedexStatMilestoneBonus() {
+        const pokedex = this.gameState?.pokedex || {};
+        const caught = Object.keys(POKEMON_DATA).reduce((count, id) => count + (pokedex[id] === 'caught' ? 1 : 0), 0);
+        const milestonesReached = POKEDEX_STAT_MILESTONES.filter(threshold => caught >= threshold).length;
+        return milestonesReached * POKEDEX_STAT_MILESTONE_BONUS;
+    }
+
+    areKyuremFusionPartnersSixIV(partnerId = this.getKyuremFusionPartner()) {
+        return [643, 644].includes(Number(partnerId)) && this.isPokemonSixIV(646) && this.isPokemonSixIV(partnerId);
+    }
+
+    isKyuremOverdrive() {
+        const partnerId = this.getKyuremFusionPartner();
+        return !!partnerId && !!this.gameState?.kyuremOverdrive && this.areKyuremFusionPartnersSixIV(partnerId);
+    }
+
+    isFusionReservedPokemon(pokemonId) {
+        return (this.isKyuremFused() && Number(pokemonId) === this.getKyuremFusionPartner()) ||
+            (this.isNecrozmaFused() && Number(pokemonId) === this.getNecrozmaFusionPartner()) ||
+            (this.isCalyrexFused() && Number(pokemonId) === this.getCalyrexFusionPartner());
+    }
+
+    isFusionLockedPokemon(pokemonId) {
+        return (this.isKyuremFused() && [646, this.getKyuremFusionPartner()].includes(Number(pokemonId))) ||
+            (this.isNecrozmaFused() && [800, this.getNecrozmaFusionPartner()].includes(Number(pokemonId))) ||
+            (this.isCalyrexFused() && [898, this.getCalyrexFusionPartner()].includes(Number(pokemonId)));
+    }
+
+    getNecrozmaFusionPartner() {
+        if (!this.gameState?.necrozmaFusion) return null;
+        const partnerId = Number(this.gameState.necrozmaFusionPartner);
+        return [791, 792].includes(partnerId) ? partnerId : null;
+    }
+
+    isNecrozmaFused() {
+        return this.getNecrozmaFusionPartner() !== null;
+    }
+
+    getNecrozmaFusionPartnersInTeam() {
+        return [791, 792].filter(id => this.gameState?.team?.includes(id));
+    }
+
+    getCalyrexFusionPartner() {
+        if (!this.gameState?.calyrexFusion) return null;
+        const partnerId = Number(this.gameState.calyrexFusionPartner);
+        return [896, 897].includes(partnerId) ? partnerId : null;
+    }
+
+    isCalyrexFused() {
+        return this.getCalyrexFusionPartner() !== null;
+    }
+
+    getCalyrexFusionPartnersInTeam() {
+        return [896, 897].filter(id => this.gameState?.team?.includes(id));
+    }
+
+    getPokemonForm(pokemonId, pokemon = null) {
+        const id = Number(pokemonId);
+        const entry = POKEMON_FORM_DATA[id];
+        const terapagosIsActive = this.gameState?.team?.[this.gameState.activePokemonIndex] === 1024;
+        const terapagosFormIsAvailable = !pokemon?.useStableTerapagosTeamStats && !this._towerMode && !pokemon?.isWild && !pokemon?.isTowerEnemy && terapagosIsActive;
+        if (id === 1024 && terapagosFormIsAvailable && this.gameState.terapagosBattleForm) {
+            return this.gameState.terapagosBattleForm;
+        }
+        if (pokemon?.form) return pokemon.form;
+        if (id === 646 && this.isKyuremFused()) return this.isBlackKyuremFused() ? 'black' : 'white';
+        if (id === 800 && this.isNecrozmaFused()) return this.getNecrozmaFusionPartner() === 791 ? 'dusk-mane' : 'dawn-wings';
+        if (id === 898 && this.isCalyrexFused()) return this.getCalyrexFusionPartner() === 896 ? 'ice-rider' : 'shadow-rider';
+        if (!entry) return id === 386 ? this.gameState.pokemonForms?.[386] || 'normal' : 'normal';
+        if (pokemon?.isWild || pokemon?.isTowerEnemy) return entry.wildForm || entry.defaultForm;
+        return this.gameState.pokemonForms?.[pokemonId] || entry.defaultForm;
+    }
+
+    getPokemonFormData(pokemonId, pokemon = null) {
+        if (Number(pokemonId) === 646) {
+            const form = this.getPokemonForm(pokemonId, pokemon);
+            if (form === 'white') return KYUREM_WHITE_FORM_DATA;
+            if (form === 'black') return KYUREM_BLACK_FORM_DATA;
+        }
+        return getPokemonFormDefinition(Number(pokemonId), this.getPokemonForm(pokemonId, pokemon));
+    }
+
+    getPokemonTypes(pokemonId, pokemon = null) {
+        return this.getPokemonFormData(pokemonId, pokemon)?.types || POKEMON_DATA[pokemonId]?.types || [];
+    }
+
+    _setTerapagosBattleForm(pokemonId) {
+        if (this._towerMode || Number(pokemonId) !== 1024) return;
+        if (!this.gameState.terapagosBattleForm) {
+            const wins = Math.max(0, Math.min(5, Number(this.gameState.terapagosStellarWins) || 0));
+            this.gameState.terapagosBattleForm = wins >= 5 ? 'stellar' : 'terastal';
+            if (wins >= 5) this.gameState.terapagosStellarWins = 0;
+            this.save();
+        }
+    }
+
+    _recordTerapagosVictory(activePokemonId) {
+        if (Number(activePokemonId) !== 1024) return;
+        const wins = Math.max(0, Math.min(5, Number(this.gameState.terapagosStellarWins) || 0));
+        this.gameState.terapagosStellarWins = Math.min(5, wins + 1);
+        if (!this._offlineSimState && this.onBattleEvent) {
+            this.onBattleEvent('terapagosEnergyChanged', { wins: this.gameState.terapagosStellarWins, maximum: 5 });
+        }
+    }
+
+    isPokemonFormUnlocked(pokemonId, form) {
+        const definition = getPokemonFormDefinition(pokemonId, form);
+        if (!definition) return Number(pokemonId) === 386 && ['normal', 'attack', 'defense', 'speed'].includes(form);
+        if (!definition || definition.fusionPartner) return false;
+        return !definition.unlock || !!this.gameState.formUnlocks?.[definition.unlock];
+    }
+
+    setPokemonForm(pokemonId, form) {
+        const entry = POKEMON_FORM_DATA[Number(pokemonId)];
+        const validDeoxysForm = Number(pokemonId) === 386 && ['normal', 'attack', 'defense', 'speed'].includes(form);
+        if ((!entry?.forms?.[form] && !validDeoxysForm) || !this.isPokemonFormUnlocked(pokemonId, form)) return false;
+        this.gameState.pokemonForms = this.gameState.pokemonForms || {};
+        this.gameState.pokemonForms[pokemonId] = form;
+        const teamIndex = this.gameState.team?.indexOf(Number(pokemonId)) ?? -1;
+        if (teamIndex >= 0 && teamIndex === this.gameState.activePokemonIndex && this.currentBattle) this.setActivePokemon(teamIndex);
+        this.save();
+        return true;
+    }
+
+    toggleKyuremFusion(overdrive = false, partnerId = null, shiny = false) {
+        if (this._towerMode || this._offlineSimState || this.healTimer) {
+            return { success: false, message: '目前無法變更隊伍' };
+        }
+
+        const kyuremIndex = this.gameState.team.indexOf(646);
+        if (kyuremIndex < 0) {
+            return { success: false, message: '隊伍中需要酋雷姆與合體夥伴' };
+        }
+
+        const wasFused = this.isKyuremFused();
+        if (wasFused) {
+            this.gameState.kyuremFusion = false;
+            delete this.gameState.kyuremFusionPartner;
+            delete this.gameState.kyuremOverdrive;
+            delete this.gameState.kyuremFusionShiny;
+        } else {
+            const availablePartners = this.getKyuremFusionPartnersInTeam();
+            const selectedPartner = Number(partnerId) || (availablePartners.length === 1 ? availablePartners[0] : null);
+            if (!selectedPartner || !availablePartners.includes(selectedPartner)) {
+                return { success: false, message: '請先選擇合體夥伴' };
+            }
+            this.gameState.kyuremFusion = true;
+            this.gameState.kyuremFusionPartner = selectedPartner;
+            this.gameState.kyuremOverdrive = this.areKyuremFusionPartnersSixIV(selectedPartner) && overdrive === true;
+            this.gameState.kyuremFusionShiny = shiny === true;
+            const partnerIndex = this.gameState.team.indexOf(selectedPartner);
+            if (this.gameState.activePokemonIndex === partnerIndex) this.gameState.activePokemonIndex = kyuremIndex;
+        }
+
+        if (this.currentBattle) this.setActivePokemon(this.gameState.activePokemonIndex);
+        this.save();
+        return {
+            success: true,
+            fused: this.isKyuremFused(),
+            partnerId: this.getKyuremFusionPartner(),
+            overdrive: this.isKyuremOverdrive(),
+        };
+    }
+
+    toggleNecrozmaFusion(partnerId = null, shiny = false) {
+        if (this._towerMode || this._offlineSimState || this.healTimer) {
+            return { success: false, message: '目前無法變更隊伍' };
+        }
+        const necrozmaIndex = this.gameState.team.indexOf(800);
+        if (necrozmaIndex < 0) return { success: false, message: '隊伍中需要奈克洛茲瑪與合體夥伴' };
+
+        if (this.isNecrozmaFused()) {
+            this.gameState.necrozmaFusion = false;
+            delete this.gameState.necrozmaFusionPartner;
+            delete this.gameState.necrozmaFusionShiny;
+        } else {
+            const availablePartners = this.getNecrozmaFusionPartnersInTeam();
+            const selectedPartner = Number(partnerId) || (availablePartners.length === 1 ? availablePartners[0] : null);
+            if (!selectedPartner || !availablePartners.includes(selectedPartner)) {
+                return { success: false, message: '請先選擇索爾迦雷歐或露奈雅拉作為合體夥伴' };
+            }
+            this.gameState.necrozmaFusion = true;
+            this.gameState.necrozmaFusionPartner = selectedPartner;
+            this.gameState.necrozmaFusionShiny = shiny === true;
+            const partnerIndex = this.gameState.team.indexOf(selectedPartner);
+            if (this.gameState.activePokemonIndex === partnerIndex) this.gameState.activePokemonIndex = necrozmaIndex;
+        }
+
+        if (this.currentBattle) this.setActivePokemon(this.gameState.activePokemonIndex);
+        this.save();
+        return { success: true, fused: this.isNecrozmaFused(), partnerId: this.getNecrozmaFusionPartner(), shiny: !!this.gameState.necrozmaFusionShiny };
+    }
+
+    toggleCalyrexFusion(partnerId = null, shiny = false) {
+        if (this._towerMode || this._offlineSimState || this.healTimer) {
+            return { success: false, message: '目前無法變更隊伍' };
+        }
+        const calyrexIndex = this.gameState.team.indexOf(898);
+        if (calyrexIndex < 0) return { success: false, message: '隊伍中需要蕾冠王與合體夥伴' };
+
+        if (this.isCalyrexFused()) {
+            this.gameState.calyrexFusion = false;
+            delete this.gameState.calyrexFusionPartner;
+            delete this.gameState.calyrexFusionShiny;
+        } else {
+            const availablePartners = this.getCalyrexFusionPartnersInTeam();
+            const selectedPartner = Number(partnerId) || (availablePartners.length === 1 ? availablePartners[0] : null);
+            if (!selectedPartner || !availablePartners.includes(selectedPartner)) {
+                return { success: false, message: '請先選擇雪暴馬或靈幽馬作為合體夥伴' };
+            }
+            this.gameState.calyrexFusion = true;
+            this.gameState.calyrexFusionPartner = selectedPartner;
+            this.gameState.calyrexFusionShiny = shiny === true;
+            const partnerIndex = this.gameState.team.indexOf(selectedPartner);
+            if (this.gameState.activePokemonIndex === partnerIndex) this.gameState.activePokemonIndex = calyrexIndex;
+        }
+
+        if (this.currentBattle) this.setActivePokemon(this.gameState.activePokemonIndex);
+        this.save();
+        return { success: true, fused: this.isCalyrexFused(), partnerId: this.getCalyrexFusionPartner(), shiny: !!this.gameState.calyrexFusionShiny };
+    }
+
+    _updateZygardeFormUnlocks(wildPokemon = null) {
+        if (!this.gameState?.formUnlocks) return;
+        const stored = this.gameState.caughtPokemon?.[718];
+        const ivStats = ['hp', 'atk', 'def', 'spAtk', 'spDef', 'speed'];
+        if (stored && ivStats.every(stat => stored.ivs?.[stat] === 31)) this.gameState.formUnlocks.zygarde50 = true;
+        if (this.gameState.shinyDex?.[718] || (wildPokemon?.id === 718 && wildPokemon.isShiny)) this.gameState.formUnlocks.zygardeComplete = true;
+    }
+
+    _updatePokemonFormUnlocks(wildPokemon = null) {
+        if (!this.gameState) return;
+        this.gameState.formUnlocks = this.gameState.formUnlocks || {};
+        this.gameState.formCatchProgress = this.gameState.formCatchProgress || {};
+        if (this.isRegionCompleted('galar')) this.gameState.formUnlocks.galarDex = true;
+
+        const ivStats = ['hp', 'atk', 'def', 'spAtk', 'spDef', 'speed'];
+        for (const [idText, definition] of Object.entries(POKEMON_FORM_DATA)) {
+            const unlocks = Object.values(definition.forms)
+                .map(form => form.unlock)
+                .filter(unlock => unlock?.startsWith('formCatch'));
+            if (unlocks.length === 0) continue;
+
+            const id = Number(idText);
+            const progress = this.gameState.formCatchProgress[id] || { sixIV: false, shiny: false };
+            const caught = this.gameState.caughtPokemon?.[id];
+            const ivs = Number(wildPokemon?.id) === id ? wildPokemon.ivs : caught?.ivs;
+            if (ivs && ivStats.every(stat => ivs[stat] === 31)) progress.sixIV = true;
+            if (this.gameState.shinyDex?.[id] || (Number(wildPokemon?.id) === id && wildPokemon.isShiny)) progress.shiny = true;
+            this.gameState.formCatchProgress[id] = progress;
+
+            if (progress.sixIV && progress.shiny) {
+                for (const unlock of unlocks) this.gameState.formUnlocks[unlock] = true;
+            }
+        }
+    }
+
     // ===================== 初始化 =====================
     initNewGame() {
         // 生成初始皮卡丘的個體值（儲存在 caughtPokemon 中）
@@ -727,6 +1029,14 @@ class GameCore {
 
         this.gameState = {
             pokemonForms: {},
+            terapagosStellarWins: 0,
+            terapagosBattleForm: null,
+            formUnlocks: {},
+            formCatchProgress: {},
+            necrozmaFusion: false,
+            necrozmaFusionShiny: false,
+            calyrexFusion: false,
+            calyrexFusionShiny: false,
             team: [],               // 隊伍（最多6只）- 只儲存 pokemonId
             activePokemonIndex: 0,  // 出戰寶可夢在隊伍中的索引
             currentRegion: 'kanto',
@@ -753,6 +1063,7 @@ class GameCore {
             berryPlots: [],         // 種植槽 [{ berryId, plantedAt }]  成熟判定: Date.now() - plantedAt >= BERRY_GROW_TIME
             berryBag: {},           // 樹果背包 { berryId: count }
             berryFed: {},           // 寶可夢已餵食記錄 { pokemonId: { berryId: count } }
+            berrySystemVersion: BERRY_SYSTEM_VERSION,
             // 天賦系統
             talents: {},            // { talentId: level, gemAttrChoice: attrId }
             // 挑戰塔系統
@@ -908,12 +1219,12 @@ class GameCore {
         const pokemon = {
             uid: this.generateUID(),
             id: pokemonId,
-            name: baseData.name,
+            name: this.getPokemonFormData(pokemonId)?.displayName || this.getPokemonFormData(pokemonId)?.name || baseData.name,
             level: level,
             exp: getExpForLevel(baseData.expGroup, level),
             ivs: { ...storedData.ivs },
             isShiny: !!this.gameState.shinyDex[pokemonId], // 閃光圖鑑中有記錄則為閃光寶可夢
-            form: Number(pokemonId) === 386 ? this.gameState.pokemonForms?.[pokemonId] || 'normal' : 'normal',
+            form: this.getPokemonForm(pokemonId),
         };
 
         // 計算當前屬性
@@ -981,6 +1292,7 @@ class GameCore {
             ivs: ivs,
             isShiny: isShiny,
             isWild: true,
+            form: Number(pokemonId) === 718 ? '50' : (POKEMON_FORM_DATA[pokemonId]?.wildForm || POKEMON_FORM_DATA[pokemonId]?.defaultForm || 'normal'),
         };
 
         const stats = this.calculateStats(pokemon);
@@ -1018,32 +1330,39 @@ class GameCore {
     // Other = floor((2 * Base + IV) * Level / 100) + 5
     // 閃光加成 = 種族值 * 1.2（閃光寶可夢種族值提升20%）
 
-    _getEffectiveBaseStats(baseRaw, berryBonuses, isShiny) {
+    _getEffectiveBaseStats(baseRaw, berryBonuses, isShiny, statCap = null) {
         const shinyBonus = isShiny ? 1.2 : 1;
+        const applyStat = stat => Math.floor(Math.min(statCap ?? Infinity, baseRaw[stat] + (berryBonuses[stat] || 0)) * shinyBonus);
         return {
-            hp: Math.floor(Math.min(BERRY_STAT_CAP, baseRaw.hp + (berryBonuses.hp || 0)) * shinyBonus),
-            atk: Math.floor(Math.min(BERRY_STAT_CAP, baseRaw.atk + (berryBonuses.atk || 0)) * shinyBonus),
-            def: Math.floor(Math.min(BERRY_STAT_CAP, baseRaw.def + (berryBonuses.def || 0)) * shinyBonus),
-            spAtk: Math.floor(Math.min(BERRY_STAT_CAP, baseRaw.spAtk + (berryBonuses.spAtk || 0)) * shinyBonus),
-            spDef: Math.floor(Math.min(BERRY_STAT_CAP, baseRaw.spDef + (berryBonuses.spDef || 0)) * shinyBonus),
-            speed: Math.floor(Math.min(BERRY_STAT_CAP, baseRaw.speed + (berryBonuses.speed || 0)) * shinyBonus),
+            hp: applyStat('hp'),
+            atk: applyStat('atk'),
+            def: applyStat('def'),
+            spAtk: applyStat('spAtk'),
+            spDef: applyStat('spDef'),
+            speed: applyStat('speed'),
         };
     }
 
     calculateBaseStats(pokemon) {
-        const baseRaw = Number(pokemon.id) === 386
+        const formData = this.getPokemonFormData(pokemon.id, pokemon);
+        const sourceBaseRaw = Number(pokemon.id) === 386
             ? DEOXYS_FORM_BASE_STATS[pokemon.form] || DEOXYS_FORM_BASE_STATS.normal
-            : POKEMON_DATA[pokemon.id].baseStats;
+            : (formData?.baseStats || POKEMON_DATA[pokemon.id].baseStats);
+        const baseRaw = { ...sourceBaseRaw };
+        if (!pokemon.isWild && !pokemon.isTowerEnemy) {
+            const milestoneBonus = this.getPokedexStatMilestoneBonus();
+            for (const stat of Object.keys(baseRaw)) baseRaw[stat] += milestoneBonus;
+        }
         const level = pokemon.level;
         const ivs = pokemon.ivs;
 
-        // 樹果加成（每個樹果+5對應種族值，不含閃光上限255，閃光在封頂後再乘）
+        // 樹果加成（每種20顆餵滿後使對應種族值加倍；閃光在樹果加成後計算）
         // 只有己方寶可夢才享受樹果加成，野生/敵方怪物不計算
         const berryBonuses = pokemon.isTowerEnemy
-            ? Object.fromEntries(Object.entries(baseRaw).map(([stat, value]) => [stat, Math.max(0, BERRY_STAT_CAP - value)]))
-            : pokemon.isWild ? {} : this.getBerryBonuses(pokemon.id);
+            ? Object.fromEntries(Object.entries(baseRaw).map(([stat, value]) => [stat, Math.max(0, TOWER_ENEMY_STAT_CAP - value)]))
+            : pokemon.isWild ? {} : this.getBerryBonuses(pokemon.id, baseRaw);
 
-        const base = this._getEffectiveBaseStats(baseRaw, berryBonuses, pokemon.isShiny);
+        const base = this._getEffectiveBaseStats(baseRaw, berryBonuses, pokemon.isShiny, pokemon.isTowerEnemy ? TOWER_ENEMY_STAT_CAP : null);
 
         const hp = Math.floor((2 * base.hp + ivs.hp) * level / 100) + level + 10;
         const atk = Math.floor((2 * base.atk + ivs.atk) * level / 100) + 5;
@@ -1057,22 +1376,29 @@ class GameCore {
 
     // 獲取含加成的種族值（閃光+樹果），用於圖鑑展示
     getEffectiveBaseStats(pokemonId) {
-        const form = Number(pokemonId) === 386 ? this.gameState.pokemonForms?.[pokemonId] || 'normal' : null;
-        const baseRaw = Number(pokemonId) === 386
+        const form = this.getPokemonForm(pokemonId);
+        const sourceBaseRaw = Number(pokemonId) === 386
             ? DEOXYS_FORM_BASE_STATS[form] || DEOXYS_FORM_BASE_STATS.normal
-            : POKEMON_DATA[pokemonId]?.baseStats;
-        if (!baseRaw) return null;
-        return this._getEffectiveBaseStats(baseRaw, this.getBerryBonuses(pokemonId), !!this.gameState.shinyDex[pokemonId]);
+            : (this.getPokemonFormData(pokemonId)?.baseStats || POKEMON_DATA[pokemonId]?.baseStats);
+        if (!sourceBaseRaw) return null;
+        const baseRaw = { ...sourceBaseRaw };
+        const milestoneBonus = this.getPokedexStatMilestoneBonus();
+        for (const stat of Object.keys(baseRaw)) baseRaw[stat] += milestoneBonus;
+        return this._getEffectiveBaseStats(baseRaw, this.getBerryBonuses(pokemonId, baseRaw), !!this.gameState.shinyDex[pokemonId]);
     }
 
     // 遊戲中的簡化屬性: 生命值、攻擊力(物攻+特攻)、防禦(物防+特防)、速度
-    calculateStats(pokemon) {
+    calculateStats(pokemon, applyPokedexBonus = false) {
         const rawStats = this.calculateBaseStats(pokemon);
+        const pokedexRate = applyPokedexBonus && !pokemon.isWild && !pokemon.isTowerEnemy
+            ? this.getPokedexBonusInfo().rate * (this._towerMode ? this.getTowerBonusFactors().pokedex : 1)
+            : 0;
+        const applyRate = value => pokedexRate > 0 ? Math.floor(value * (1 + pokedexRate)) : value;
         return {
-            hp: rawStats.hp,
-            attack: rawStats.atk + rawStats.spAtk,
-            defense: rawStats.def + rawStats.spDef,
-            speed: rawStats.speed,
+            hp: applyRate(rawStats.hp),
+            attack: applyRate(rawStats.atk) + applyRate(rawStats.spAtk),
+            defense: applyRate(rawStats.def) + applyRate(rawStats.spDef),
+            speed: applyRate(rawStats.speed),
             // 保留原始值用於顯示
             rawAtk: rawStats.atk,
             rawSpAtk: rawStats.spAtk,
@@ -1122,7 +1448,8 @@ class GameCore {
         const expScore = EXP_GROUP_SCORES[baseData.expGroup] || 0;
 
         // 2. 100級屬性評分 (0-91分) - 基於成長值（6項權重一致）
-        const baseStatsRaw = baseData.baseStats;
+        const milestoneBonus = this.getPokedexStatMilestoneBonus();
+        const baseStatsRaw = Object.fromEntries(Object.entries(baseData.baseStats).map(([stat, value]) => [stat, value + milestoneBonus]));
         const ivs = storedData.ivs;
 
         // 閃光寶可夢種族值增加20%
@@ -1130,15 +1457,15 @@ class GameCore {
         const shinyBonus = isShiny ? 1.2 : 1;
 
         // 樹果加成（與 calculateBaseStats 保持一致）
-        const berryBonuses = this.getBerryBonuses(pokemonId);
+        const berryBonuses = this.getBerryBonuses(pokemonId, baseStatsRaw);
 
-        // 計算各項成長值 = (種族值+樹果加成, 上限255)×閃光×2 + 個體值
-        const growthHp = Math.floor(Math.min(BERRY_STAT_CAP, baseStatsRaw.hp + (berryBonuses.hp || 0)) * shinyBonus) * 2 + ivs.hp;
-        const growthAtk = Math.floor(Math.min(BERRY_STAT_CAP, baseStatsRaw.atk + (berryBonuses.atk || 0)) * shinyBonus) * 2 + ivs.atk;
-        const growthDef = Math.floor(Math.min(BERRY_STAT_CAP, baseStatsRaw.def + (berryBonuses.def || 0)) * shinyBonus) * 2 + ivs.def;
-        const growthSpAtk = Math.floor(Math.min(BERRY_STAT_CAP, baseStatsRaw.spAtk + (berryBonuses.spAtk || 0)) * shinyBonus) * 2 + ivs.spAtk;
-        const growthSpDef = Math.floor(Math.min(BERRY_STAT_CAP, baseStatsRaw.spDef + (berryBonuses.spDef || 0)) * shinyBonus) * 2 + ivs.spDef;
-        const growthSpeed = Math.floor(Math.min(BERRY_STAT_CAP, baseStatsRaw.speed + (berryBonuses.speed || 0)) * shinyBonus) * 2 + ivs.speed;
+        // 計算各項成長值 = (種族值+樹果加成)×閃光×2 + 個體值；玩家樹果不設255上限。
+        const growthHp = Math.floor((baseStatsRaw.hp + (berryBonuses.hp || 0)) * shinyBonus) * 2 + ivs.hp;
+        const growthAtk = Math.floor((baseStatsRaw.atk + (berryBonuses.atk || 0)) * shinyBonus) * 2 + ivs.atk;
+        const growthDef = Math.floor((baseStatsRaw.def + (berryBonuses.def || 0)) * shinyBonus) * 2 + ivs.def;
+        const growthSpAtk = Math.floor((baseStatsRaw.spAtk + (berryBonuses.spAtk || 0)) * shinyBonus) * 2 + ivs.spAtk;
+        const growthSpDef = Math.floor((baseStatsRaw.spDef + (berryBonuses.spDef || 0)) * shinyBonus) * 2 + ivs.spDef;
+        const growthSpeed = Math.floor((baseStatsRaw.speed + (berryBonuses.speed || 0)) * shinyBonus) * 2 + ivs.speed;
 
         // 6項成長值總和
         const totalGrowth = growthHp + growthAtk + growthDef + growthSpAtk + growthSpDef + growthSpeed;
@@ -1169,15 +1496,18 @@ class GameCore {
         const activePokemon = this.createPokemon(pokemonId, true);
         if (!activePokemon) return null;
 
-        const baseStats = this.calculateStats(activePokemon);
+        const baseStats = this.calculateStats(activePokemon, true);
 
         // 隊伍內其他寶可夢的加成 (20%)
         let teamBonus = { hp: 0, attack: 0, defense: 0, speed: 0 };
         for (let i = 0; i < team.length; i++) {
-            if (i !== pokemonIndex) {
+            if (i !== pokemonIndex && !this.isFusionReservedPokemon(team[i])) {
                 const otherPokemon = this.createPokemon(team[i], true);
                 if (otherPokemon) {
-                    const s = this.calculateStats(otherPokemon);
+                    const teamContributor = Number(team[i]) === 1024
+                        ? { ...otherPokemon, form: 'normal', useStableTerapagosTeamStats: true }
+                        : otherPokemon;
+                    const s = this.calculateStats(teamContributor);
                     teamBonus.hp += s.hp * 0.2;
                     teamBonus.attack += s.attack * 0.2;
                     teamBonus.defense += s.defense * 0.2;
@@ -1186,27 +1516,11 @@ class GameCore {
             }
         }
 
-        // 圖鑑加成：對戰塔內依樓層逐步恢復，一般戰鬥維持 1%。
-        let pokedexBonus = { hp: 0, attack: 0, defense: 0, speed: 0 };
-        const pokedexRate = 0.01 * (this._towerMode ? this.getTowerBonusFactors().pokedex : 1);
-        const teamSet = new Set(team.map(id => String(id)));
-        for (const dexId in this.gameState.pokedex) {
-            if (this.gameState.pokedex[dexId] === 'caught' && !teamSet.has(dexId)) {
-                const dexPokemon = this.createPokemon(parseInt(dexId), true);
-                if (dexPokemon) {
-                    const s = this.calculateStats(dexPokemon);
-                    pokedexBonus.hp += s.hp * pokedexRate;
-                    pokedexBonus.attack += s.attack * pokedexRate;
-                    pokedexBonus.defense += s.defense * pokedexRate;
-                    pokedexBonus.speed += s.speed * pokedexRate;
-                }
-            }
-        }
-
-        let finalHp = Math.floor(baseStats.hp + teamBonus.hp + pokedexBonus.hp);
-        let finalAttack = Math.floor(baseStats.attack + teamBonus.attack + pokedexBonus.attack);
-        let finalDefense = Math.floor(baseStats.defense + teamBonus.defense + pokedexBonus.defense);
-        let finalSpeed = Math.floor(baseStats.speed + teamBonus.speed + pokedexBonus.speed);
+        // 圖鑑百分比已逐項套用於出戰者六項自身能力；隊友加成不再重複套用。
+        let finalHp = Math.floor(baseStats.hp + teamBonus.hp);
+        let finalAttack = Math.floor(baseStats.attack + teamBonus.attack);
+        let finalDefense = Math.floor(baseStats.defense + teamBonus.defense);
+        let finalSpeed = Math.floor(baseStats.speed + teamBonus.speed);
 
         // 寶石屬性百分比加成
         const gemBonuses = this.getBattleGemBonuses();
@@ -1255,31 +1569,20 @@ class GameCore {
         const teamBonus = { hp: 0, attack: 0, defense: 0, speed: 0 };
         for (let i = 0; i < this.gameState.team.length; i++) {
             if (i === idx) continue;
+            if (this.isFusionReservedPokemon(this.gameState.team[i])) continue;
             const mate = this.createPokemon(this.gameState.team[i], true);
             if (mate) {
-                const ms = this.calculateStats(mate);
+                const teamContributor = Number(this.gameState.team[i]) === 1024
+                    ? { ...mate, form: 'normal', useStableTerapagosTeamStats: true }
+                    : mate;
+                const ms = this.calculateStats(teamContributor);
                 teamBonus.hp += ms.hp * 0.2;
                 teamBonus.attack += ms.attack * 0.2;
                 teamBonus.defense += ms.defense * 0.2;
                 teamBonus.speed += ms.speed * 0.2;
             }
         }
-        // 圖鑑加成
-        const pokedexBonus = { hp: 0, attack: 0, defense: 0, speed: 0 };
-        const pokedexRate = 0.01 * (this._towerMode ? this.getTowerBonusFactors().pokedex : 1);
-        const teamSet = new Set(this.gameState.team.map(id => String(id)));
-        for (const dexId in this.gameState.pokedex) {
-            if (this.gameState.pokedex[dexId] === 'caught' && !teamSet.has(dexId)) {
-                const dexPokemon = this.createPokemon(parseInt(dexId), true);
-                if (dexPokemon) {
-                    const s = this.calculateStats(dexPokemon);
-                    pokedexBonus.hp += s.hp * pokedexRate;
-                    pokedexBonus.attack += s.attack * pokedexRate;
-                    pokedexBonus.defense += s.defense * pokedexRate;
-                    pokedexBonus.speed += s.speed * pokedexRate;
-                }
-            }
-        }
+        const pokedexAdjustedStats = this.calculateStats(pokemon, true);
 
         const selfStat = { hp: baseStats.hp, attack: baseStats.attack, defense: baseStats.defense, speed: baseStats.speed };
         const teamStat = { hp: Math.floor(teamBonus.hp), attack: Math.floor(teamBonus.attack), defense: Math.floor(teamBonus.defense), speed: Math.floor(teamBonus.speed) };
@@ -1294,8 +1597,9 @@ class GameCore {
         const talentStat = {};
         const gemKeys = { hp: 'hp_bonus', attack: 'atk_bonus', defense: 'def_bonus', speed: 'speed_bonus' };
         for (const key of Object.keys(gemKeys)) {
-            const baseTotal = Math.floor(baseStats[key] + teamBonus[key] + pokedexBonus[key]);
-            pokedexStat[key] = baseTotal - baseStats[key] - teamStat[key];
+            const withoutPokedex = Math.floor(baseStats[key] + teamBonus[key]);
+            const baseTotal = Math.floor(pokedexAdjustedStats[key] + teamBonus[key]);
+            pokedexStat[key] = baseTotal - withoutPokedex;
             const gemBonus = gemBonuses[gemKeys[key]];
             const afterGem = gemBonus > 0 ? Math.floor(baseTotal * (1 + gemBonus / 100)) : baseTotal;
             gemStat[key] = afterGem - baseTotal;
@@ -1340,7 +1644,7 @@ class GameCore {
     }
 
     _getTowerEnemySkill(pokemonId, targetTypes) {
-        const types = POKEMON_DATA[pokemonId]?.types || [];
+        const types = this.getPokemonTypes(pokemonId);
         let best = null;
         let bestScore = -1;
         for (const type of types) {
@@ -1387,6 +1691,7 @@ class GameCore {
         this.gameState.routeBattleFailureStreak = 0;
         if (this.onBattleEvent) this.onBattleEvent('routeBattleSuccess', {});
         this.gameState.stats.totalBattles++;
+        this._recordTerapagosVictory(activePokemonId);
 
         // 圖鑑標記
         if (!this.gameState.pokedex[wildPokemon.id]) {
@@ -1455,12 +1760,15 @@ class GameCore {
 
         // 擊敗處理（捕獲/IV更新/地區解鎖/徽章）
         this.processDefeat(wildPokemon);
+        this._updateZygardeFormUnlocks(wildPokemon);
 
         // 閃光記錄：擊敗閃光寶可夢後，雙向傳播閃光給整條進化鏈
         if (wildPokemon.isShiny && !this.gameState.shinyDex[wildPokemon.id]) {
             this.gameState.shinyDex[wildPokemon.id] = true;
+            this._updateZygardeFormUnlocks(wildPokemon);
             this._syncShinyInFamily(wildPokemon.id);
         }
+        this._updatePokemonFormUnlocks(wildPokemon);
 
         // 自動切換地圖
         const autoSwitchResult = this.tryAutoRouteSwitch();
@@ -1473,6 +1781,7 @@ class GameCore {
     // 返回額外欄位 anyLevelUp 用於 #1 判斷是否需要重新整理快取
     _processVictoryRewardsOffline(wildPokemon, activePokemonId, playerMaxHp, playerCurrentHp, simState) {
         this.gameState.stats.totalBattles++;
+        this._recordTerapagosVictory(activePokemonId);
 
         // 圖鑑標記
         if (!this.gameState.pokedex[wildPokemon.id]) {
@@ -1531,12 +1840,15 @@ class GameCore {
 
         // 擊敗處理（捕獲/IV更新/地區解鎖/徽章）
         this.processDefeat(wildPokemon);
+        this._updateZygardeFormUnlocks(wildPokemon);
 
         // 閃光記錄
         if (wildPokemon.isShiny && !this.gameState.shinyDex[wildPokemon.id]) {
             this.gameState.shinyDex[wildPokemon.id] = true;
+            this._updateZygardeFormUnlocks(wildPokemon);
             this._syncShinyInFamily(wildPokemon.id);
         }
+        this._updatePokemonFormUnlocks(wildPokemon);
 
         // 自動切換地圖
         const autoSwitchResult = this.tryAutoRouteSwitch();
@@ -1635,7 +1947,7 @@ class GameCore {
     _getBestTeamMemberForEnemyOffline(wildPokemon, cachedTeamStats, cachedTeamLevels) {
         if (!this.gameState.team || this.gameState.team.length <= 1) return -1;
 
-        const wildTypes = POKEMON_DATA[wildPokemon.id]?.types || [];
+        const wildTypes = this.getPokemonTypes(wildPokemon.id, wildPokemon);
         const enemyStats = this.calculateStats(wildPokemon);
         const enemyHp = enemyStats.hp;
         const oneShotStrategy = this.gameState.settings?.oneShotStrategy || 'fastest';
@@ -1644,10 +1956,11 @@ class GameCore {
 
         for (let i = 0; i < this.gameState.team.length; i++) {
             const pokemonId = this.gameState.team[i];
+            if (this.isFusionReservedPokemon(pokemonId)) continue;
             const stats = cachedTeamStats[i];
             if (!stats) continue;
 
-            const playerTypes = POKEMON_DATA[pokemonId]?.types || [];
+            const playerTypes = this.getPokemonTypes(pokemonId);
             const level = cachedTeamLevels[i];
 
             // 獲取最優技能威力
@@ -1725,6 +2038,8 @@ class GameCore {
     // 招式威力固定50，無STAB
     calculateDamage(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer = false, skillPower = 0) {
         const power = skillPower > 0 ? skillPower : 50; // 有技能時使用技能威力，否則固定50
+        const towerNoTypeAdvantage = this._towerMode && isPlayer &&
+            this.gameState.tower.currentFloor >= TOWER_NO_TYPE_ADVANTAGE_FLOOR;
         
         // 基礎傷害
         let damage = this._getDamageBase(attackerLevel, attackStat, defenseStat, power);
@@ -1733,8 +2048,10 @@ class GameCore {
         let typeEffectiveness = 1;
         let effectivenessText = '';
         if (attackerTypes && defenderTypes && attackerTypes.length > 0) {
-            const result = getBestTypeEffectiveness(attackerTypes, defenderTypes);
-            typeEffectiveness = result.multiplier;
+            if (!towerNoTypeAdvantage) {
+                const result = getBestTypeEffectiveness(attackerTypes, defenderTypes);
+                typeEffectiveness = result.multiplier;
+            }
             damage = Math.floor(damage * typeEffectiveness);
             
             // 屬性效果文字
@@ -1762,6 +2079,9 @@ class GameCore {
             }
         }
         damage = this._applyDamageRoll(damage, criticalHit, critMultiplier);
+        if (towerNoTypeAdvantage) {
+            damage = Math.max(1, Math.floor(damage * TOWER_NO_ADVANTAGE_DAMAGE_FACTOR));
+        }
         
         return { damage, criticalHit, typeEffectiveness, effectivenessText };
     }
@@ -1793,6 +2113,7 @@ class GameCore {
         if (!wildPokemon) {
             wildPokemon = this.generateWildPokemon(route);
             if (!wildPokemon) return;
+            this.gameState.terapagosBattleForm = null;
             this.gameState.currentEnemy = wildPokemon;
             this.save();
 
@@ -1816,7 +2137,11 @@ class GameCore {
         }
 
         // 獲取出戰寶可夢的戰鬥屬性
+        const activePokemonId = this.gameState.team[this.gameState.activePokemonIndex];
+        this._startingBattlePokemonId = Number(activePokemonId) === 1024 ? 1024 : null;
+        this._setTerapagosBattleForm(activePokemonId);
         const playerStats = this.calculateBattleStats(this.gameState.activePokemonIndex);
+        this._startingBattlePokemonId = null;
         if (!playerStats) return;
         const enemyStats = this.calculateStats(wildPokemon);
 
@@ -1976,8 +2301,8 @@ class GameCore {
             this.currentBattle.playerTimer = 0;
             const activePokemonId = this.gameState.team[this.gameState.activePokemonIndex];
             const activePokemon = this.createPokemon(activePokemonId, true);
-            const playerTypes = POKEMON_DATA[activePokemonId]?.types || [];
-            const wildTypes = POKEMON_DATA[this.currentBattle.wild.id]?.types || [];
+            const playerTypes = this.getPokemonTypes(activePokemonId);
+            const wildTypes = this.getPokemonTypes(this.currentBattle.wild.id, this.currentBattle.wild);
 
             // 獲取最優技能
             const bestSkill = this._getBestSkillForEnemy(activePokemonId, wildTypes);
@@ -2034,9 +2359,9 @@ class GameCore {
                 }
                 // 閃避成功，不受傷害
             } else {
-                const wildTypes = POKEMON_DATA[this.currentBattle.wild.id]?.types || [];
+                const wildTypes = this.getPokemonTypes(this.currentBattle.wild.id, this.currentBattle.wild);
                 const activePokemonId = this.gameState.team[this.gameState.activePokemonIndex];
-                const playerTypes = POKEMON_DATA[activePokemonId]?.types || [];
+                const playerTypes = this.getPokemonTypes(activePokemonId);
                 const towerSkill = this._towerMode ? this._getTowerEnemySkill(this.currentBattle.wild.id, playerTypes) : null;
                 const result = this.calculateDamage(
                     this.currentBattle.wild.level,
@@ -2630,7 +2955,7 @@ class GameCore {
             const levels = [...new Set([min, Math.floor((min + max) / 2), max])];
             for (const level of levels) {
                 const wild = { id: entry.id, level: this.getMonsterLevelBoost(level), ivs: { hp: 15, atk: 15, def: 15, spAtk: 15, spDef: 15, speed: 15 }, isShiny: false, isWild: true };
-                profiles.push({ wild, stats: this.calculateStats(wild), types: POKEMON_DATA[entry.id].types || [], weight: weight / levels.length });
+                profiles.push({ wild, stats: this.calculateStats(wild), types: this.getPokemonTypes(entry.id, wild), weight: weight / levels.length });
             }
         }
         if (!profiles.length) return null;
@@ -2644,12 +2969,12 @@ class GameCore {
             const skill = this._getBestSkillForEnemy(id, profile.types);
             const power = skill.power > 0 ? skill.power : 50;
             const damage = Math.floor(((2 * pokemon.level / 5 + 2) * power * stats.attack / profile.stats.defense) / 50) + 2;
-            const effectiveness = getBestTypeEffectiveness(refine && skill.type ? [skill.type] : (POKEMON_DATA[id].types || []), profile.types).multiplier;
+            const effectiveness = getBestTypeEffectiveness(refine && skill.type ? [skill.type] : this.getPokemonTypes(id), profile.types).multiplier;
             const estimatedDamage = Math.floor(damage * effectiveness);
             const minDamage = Math.max(1, Math.floor(estimatedDamage * 0.85));
             const interval = this.getAttackInterval(stats.speed);
             const time = Math.ceil(profile.stats.hp / minDamage) * interval;
-            const enemyEffect = getBestTypeEffectiveness(profile.types, POKEMON_DATA[id].types || []).multiplier;
+            const enemyEffect = getBestTypeEffectiveness(profile.types, this.getPokemonTypes(id)).multiplier;
             const incoming = Math.max(1, Math.floor((Math.floor(((2 * profile.wild.level / 5 + 2) * 50 * profile.stats.attack / Math.max(1, stats.defense)) / 50) + 2) * enemyEffect));
             const threatened = refine && Math.floor(time / this.getAttackInterval(profile.stats.speed)) * incoming >= stats.hp;
             return { time: time + (threatened ? 60000 : 0), interval, level: pokemon.level, canOneShot: minDamage >= profile.stats.hp, dps: estimatedDamage / interval };
@@ -2758,6 +3083,7 @@ class GameCore {
     }
 
     setActivePokemon(index) {
+        if (this.isFusionReservedPokemon(this.gameState.team[index])) return false;
         if (this._towerMode && this._towerFaintedIds?.has(this.gameState.team[index])) return false;
         if (index >= 0 && index < this.gameState.team.length) {
             const oldPokemonId = this.gameState.team[this.gameState.activePokemonIndex];
@@ -2766,6 +3092,9 @@ class GameCore {
                 this._towerHpById.set(oldPokemonId, Math.max(0, this.currentBattle.playerCurrentHp));
             }
             this.gameState.activePokemonIndex = index;
+            if (this.currentBattle?.wildCurrentHp > 0) {
+                this._setTerapagosBattleForm(this.gameState.team[index]);
+            }
 
             if (this.currentBattle) {
                 // 熱切換：保留敵方狀態，繼承血量百分比和攻擊進度
@@ -2833,6 +3162,7 @@ class GameCore {
 
     removeFromTeamByPokemonId(pokemonId) {
         if (this._towerMode) return false;
+        if (this.isFusionLockedPokemon(pokemonId)) return false;
         // 找到該寶可夢在隊伍中的索引（非出戰）
         const teamIndex = this.gameState.team.findIndex((id, idx) => 
             id === pokemonId && idx !== this.gameState.activePokemonIndex
@@ -2847,6 +3177,10 @@ class GameCore {
         }
 
         console.log('removeFromTeamByPokemonId: 移除索引', teamIndex, 'pokemonId:', pokemonId);
+        if (Number(this.gameState.team[teamIndex]) === 1024) {
+            this.gameState.terapagosStellarWins = 0;
+            this.gameState.terapagosBattleForm = null;
+        }
         this.gameState.team.splice(teamIndex, 1);
 
         // 調整出戰索引
@@ -2859,9 +3193,14 @@ class GameCore {
 
     removeFromTeam(teamIndex) {
         if (this._towerMode) return false;
+        if (this.isFusionLockedPokemon(this.gameState.team[teamIndex])) return false;
         if (this.gameState.team.length <= 1) return false; // 至少保留一隻
         if (teamIndex === this.gameState.activePokemonIndex) return false; // 不能移除出戰寶可夢
 
+        if (Number(this.gameState.team[teamIndex]) === 1024) {
+            this.gameState.terapagosStellarWins = 0;
+            this.gameState.terapagosBattleForm = null;
+        }
         this.gameState.team.splice(teamIndex, 1);
 
         // 調整出戰索引
@@ -3236,6 +3575,47 @@ _isRouteCompleteByCondition(routeId) {
         }
     }
 
+    _migrateBerrySystem(saveState) {
+        if ((Number(saveState.berrySystemVersion) || 0) >= BERRY_SYSTEM_VERSION) return false;
+        saveState.berryBag ||= {};
+        saveState.berryFed ||= {};
+
+        for (const pokemonId in saveState.berryFed) {
+            const fedByType = saveState.berryFed[pokemonId];
+            const baseStats = POKEMON_DATA[pokemonId]?.baseStats;
+            if (!fedByType || typeof fedByType !== 'object') continue;
+            for (const berryId in fedByType) {
+                const berry = BERRY_DATA[berryId];
+                const numericOldCount = Number(fedByType[berryId]);
+                const oldCount = Number.isFinite(numericOldCount) ? Math.max(0, Math.floor(numericOldCount)) : 0;
+                if (!berry || oldCount === 0) {
+                    delete fedByType[berryId];
+                    continue;
+                }
+                const rawStat = Number(baseStats?.[berry.stat]) || 0;
+                if (rawStat <= 0) {
+                    saveState.berryBag[berryId] = Math.max(0, Number(saveState.berryBag[berryId]) || 0) + oldCount;
+                    delete fedByType[berryId];
+                    continue;
+                }
+
+                const oldEffectiveStat = Math.min(LEGACY_BERRY_STAT_CAP, rawStat + oldCount * LEGACY_BERRY_STAT_BONUS);
+                const migratedCount = Math.max(0, Math.min(
+                    BERRY_MAX_PER_TYPE,
+                    Math.round((oldEffectiveStat / rawStat - 1) * BERRY_MAX_PER_TYPE / (BERRY_MAX_STAT_MULTIPLIER - 1))
+                ));
+                fedByType[berryId] = migratedCount;
+                const refundedCount = Math.max(0, oldCount - migratedCount);
+                if (refundedCount > 0) {
+                    saveState.berryBag[berryId] = Math.max(0, Number(saveState.berryBag[berryId]) || 0) + refundedCount;
+                }
+            }
+        }
+
+        saveState.berrySystemVersion = BERRY_SYSTEM_VERSION;
+        return true;
+    }
+
     load() {
         try {
             const raw = localStorage.getItem('pokemon_idle_save');
@@ -3257,6 +3637,7 @@ _isRouteCompleteByCondition(routeId) {
             }
 
             const parsed = JSON.parse(data);
+            let berryMigrationApplied = false;
             // 驗證資料完整性
             if (!parsed || !parsed.team || !Array.isArray(parsed.team) || parsed.team.length === 0) {
                 console.warn('存檔資料不完整，將重新開始');
@@ -3272,6 +3653,22 @@ _isRouteCompleteByCondition(routeId) {
             if (!parsed.stats) parsed.stats = { totalBattles: 0, totalCatches: 0, totalExp: 0, totalGold: 0, playTime: 0 };
             if (!parsed.settings) parsed.settings = {};
             if (!parsed.shinyDex) parsed.shinyDex = {};
+            if (!parsed.pokemonForms) parsed.pokemonForms = {};
+            parsed.terapagosStellarWins = Math.max(0, Math.min(5, Math.floor(Number(parsed.terapagosStellarWins) || 0)));
+            parsed.terapagosBattleForm = ['terastal', 'stellar'].includes(parsed.terapagosBattleForm) && parsed.currentEnemy
+                ? parsed.terapagosBattleForm
+                : null;
+            parsed.kyuremFusion = !!parsed.kyuremFusion;
+            parsed.kyuremOverdrive = !!parsed.kyuremOverdrive;
+            parsed.kyuremFusionPartner = Number(parsed.kyuremFusionPartner) === 644 ? 644 : 643;
+            parsed.necrozmaFusion = !!parsed.necrozmaFusion;
+            parsed.necrozmaFusionPartner = [791, 792].includes(Number(parsed.necrozmaFusionPartner)) ? Number(parsed.necrozmaFusionPartner) : null;
+            parsed.necrozmaFusionShiny = !!parsed.necrozmaFusionShiny;
+            parsed.calyrexFusion = !!parsed.calyrexFusion;
+            parsed.calyrexFusionPartner = [896, 897].includes(Number(parsed.calyrexFusionPartner)) ? Number(parsed.calyrexFusionPartner) : null;
+            parsed.calyrexFusionShiny = !!parsed.calyrexFusionShiny;
+            if (!parsed.formUnlocks) parsed.formUnlocks = {};
+            if (!parsed.formCatchProgress) parsed.formCatchProgress = {};
             if (!parsed.pokedexDisplay) parsed.pokedexDisplay = {};
             if (typeof parsed.gold !== 'number') parsed.gold = 0;
             if (!parsed.badges) parsed.badges = {};
@@ -3281,6 +3678,7 @@ _isRouteCompleteByCondition(routeId) {
             if (!Array.isArray(parsed.berryPlots)) parsed.berryPlots = [];
             if (!parsed.berryBag) parsed.berryBag = {};
             if (!parsed.berryFed) parsed.berryFed = {};
+            berryMigrationApplied = this._migrateBerrySystem(parsed);
             // 技能系統相容：為舊存檔的寶可夢補充skillLevel欄位
             if (parsed.caughtPokemon) {
                 for (const id in parsed.caughtPokemon) {
@@ -3304,10 +3702,55 @@ _isRouteCompleteByCondition(routeId) {
             }
             // 確保activePokemonIndex在範圍內
             if (parsed.activePokemonIndex >= parsed.team.length) parsed.activePokemonIndex = 0;
+            if (parsed.kyuremFusion) {
+                const kyuremIndex = parsed.team.indexOf(646);
+                const partnerIndex = parsed.team.indexOf(parsed.kyuremFusionPartner);
+                if (kyuremIndex < 0 || partnerIndex < 0) {
+                    parsed.kyuremFusion = false;
+                    parsed.kyuremOverdrive = false;
+                    delete parsed.kyuremFusionPartner;
+                } else if (parsed.activePokemonIndex === partnerIndex) {
+                    parsed.activePokemonIndex = kyuremIndex;
+                }
+                parsed.kyuremOverdrive = parsed.kyuremOverdrive && parsed.kyuremFusion && ['hp', 'atk', 'def', 'spAtk', 'spDef', 'speed'].every(stat => parsed.caughtPokemon[646]?.ivs?.[stat] === 31 && parsed.caughtPokemon[parsed.kyuremFusionPartner]?.ivs?.[stat] === 31);
+            } else {
+                parsed.kyuremOverdrive = false;
+                delete parsed.kyuremFusionPartner;
+            }
+            if (parsed.necrozmaFusion) {
+                const necrozmaIndex = parsed.team.indexOf(800);
+                const partnerIndex = parsed.team.indexOf(parsed.necrozmaFusionPartner);
+                if (necrozmaIndex < 0 || partnerIndex < 0) {
+                    parsed.necrozmaFusion = false;
+                    delete parsed.necrozmaFusionPartner;
+                    delete parsed.necrozmaFusionShiny;
+                } else if (parsed.activePokemonIndex === partnerIndex) {
+                    parsed.activePokemonIndex = necrozmaIndex;
+                }
+            } else {
+                delete parsed.necrozmaFusionPartner;
+                delete parsed.necrozmaFusionShiny;
+            }
+            if (parsed.calyrexFusion) {
+                const calyrexIndex = parsed.team.indexOf(898);
+                const partnerIndex = parsed.team.indexOf(parsed.calyrexFusionPartner);
+                if (calyrexIndex < 0 || partnerIndex < 0) {
+                    parsed.calyrexFusion = false;
+                    delete parsed.calyrexFusionPartner;
+                    delete parsed.calyrexFusionShiny;
+                } else if (parsed.activePokemonIndex === partnerIndex) {
+                    parsed.activePokemonIndex = calyrexIndex;
+                }
+            } else {
+                delete parsed.calyrexFusionPartner;
+                delete parsed.calyrexFusionShiny;
+            }
 
             delete parsed.pendingSkillRouteCheck;
             delete parsed.skillRecoveryRoute;
             this.gameState = parsed;
+            this._updateZygardeFormUnlocks();
+            this._updatePokemonFormUnlocks();
             this.repairHuntingLocation();
             this.recordHighestVisitedRoute();
             this._berryGrowthLastAt = Date.now();
@@ -3315,6 +3758,7 @@ _isRouteCompleteByCondition(routeId) {
             // 遷移修復：舊版 generateUID 批次購買時產生重複uid
             this._migrateFixGemUids();
             this._reconcileCompletedBadges();
+            if (berryMigrationApplied) this.save();
             return true;
         } catch (e) {
             console.error('載入失敗:', e);
@@ -3418,6 +3862,7 @@ _isRouteCompleteByCondition(routeId) {
                 throw new Error('無效的存檔資料');
             }
 
+            this._migrateBerrySystem(data);
             this.gameState = data;
             this.recordHighestVisitedRoute();
             this._towerMode = false;
@@ -4066,7 +4511,7 @@ _isRouteCompleteByCondition(routeId) {
     getBestTeamMemberForEnemy(wildPokemon) {
         if (!this.gameState.team || this.gameState.team.length <= 1) return -1;
 
-        const wildTypes = POKEMON_DATA[wildPokemon.id]?.types || [];
+        const wildTypes = this.getPokemonTypes(wildPokemon.id, wildPokemon);
         const enemyStats = this.calculateStats(wildPokemon);
         const enemyHp = enemyStats.hp;
         const oneShotStrategy = this.gameState.settings?.oneShotStrategy || 'fastest';
@@ -4076,6 +4521,7 @@ _isRouteCompleteByCondition(routeId) {
 
         for (let i = 0; i < this.gameState.team.length; i++) {
             const pokemonId = this.gameState.team[i];
+            if (this.isFusionReservedPokemon(pokemonId)) continue;
             if (this._towerMode && this._towerFaintedIds?.has(pokemonId)) continue;
             const pokemon = this.createPokemon(pokemonId, true);
             if (!pokemon) continue;
@@ -4083,7 +4529,7 @@ _isRouteCompleteByCondition(routeId) {
             const stats = this.calculateBattleStats(i);
             if (!stats) continue;
 
-            const playerTypes = POKEMON_DATA[pokemonId]?.types || [];
+            const playerTypes = this.getPokemonTypes(pokemonId);
 
             // 獲取最優技能威力（選對敵人剋制最強的技能）
             let skillPower = 0;
@@ -4162,7 +4608,7 @@ _isRouteCompleteByCondition(routeId) {
         if (!baseData) return null;
 
         const skillLevel = storedData.skillLevel;
-        const types = baseData.types || [];
+        const types = this.getPokemonTypes(pokemonId);
         const skills = [];
 
         for (const type of types) {
@@ -4554,25 +5000,28 @@ _isRouteCompleteByCondition(routeId) {
         return { success: true, fed: currentFed + 1, max: maxForType };
     }
 
-    // 獲取某寶可夢某種樹果的最大餵食數量：向上取整，允許最後一個果子部分生效（實際加成仍封頂255）
+    // 每種樹果最多餵20顆；餵滿後使對應原始種族值加倍。
     getBerryMaxForType(pokemonId, berryId) {
         const berry = BERRY_DATA[berryId];
         if (!berry) return 0;
-        const baseStats = POKEMON_DATA[pokemonId]?.baseStats;
+        const baseStats = this.getPokemonFormData(pokemonId)?.baseStats || POKEMON_DATA[pokemonId]?.baseStats;
         if (!baseStats) return 0;
-        const rawStat = baseStats[berry.stat] || 0;
-        return Math.max(0, Math.ceil((BERRY_STAT_CAP - rawStat) / BERRY_STAT_BONUS));
+        return BERRY_MAX_PER_TYPE;
     }
 
-    // 獲取寶可夢的樹果加成 { stat: bonusValue }（每個樹果+5種族值）
-    getBerryBonuses(pokemonId) {
+    // 獲取寶可夢的樹果加成 { stat: bonusValue }（20顆使該項原始種族值加倍）
+    getBerryBonuses(pokemonId, baseStatsOverride = null) {
         const bonuses = {};
         const fed = this.gameState.berryFed[pokemonId];
         if (!fed) return bonuses;
+        const baseStats = baseStatsOverride || this.getPokemonFormData(pokemonId)?.baseStats || POKEMON_DATA[pokemonId]?.baseStats;
+        if (!baseStats) return bonuses;
         for (const berryId in fed) {
             const berry = BERRY_DATA[berryId];
             if (berry && fed[berryId] > 0) {
-                bonuses[berry.stat] = (bonuses[berry.stat] || 0) + fed[berryId] * BERRY_STAT_BONUS;
+                const fedCount = Math.min(BERRY_MAX_PER_TYPE, Math.max(0, Number(fed[berryId]) || 0));
+                const rawStat = Number(baseStats[berry.stat]) || 0;
+                bonuses[berry.stat] = (bonuses[berry.stat] || 0) + rawStat * fedCount * (BERRY_MAX_STAT_MULTIPLIER - 1) / BERRY_MAX_PER_TYPE;
             }
         }
         return bonuses;
@@ -4595,10 +5044,28 @@ _isRouteCompleteByCondition(routeId) {
     }
 
     // ===================== 挑戰塔系統 =====================
-    getTowerBonusFactors(floor = this.gameState?.tower?.currentFloor || 1) {
+    _interpolateTowerStep(steps, floor, key) {
         const current = Number.isFinite(floor) ? Math.max(1, Math.min(TOWER_MAX_FLOOR, floor)) : 1;
-        const progress = (current - 1) / (TOWER_MAX_FLOOR - 1);
-        return { pokedex: 0.30 + 0.70 * progress, talent: 0.25 + 0.75 * progress, gem: 0.25 + 0.75 * progress };
+        if (current <= steps[0].floor) return steps[0][key];
+
+        for (let i = 1; i < steps.length; i++) {
+            const upper = steps[i];
+            if (current <= upper.floor) {
+                const lower = steps[i - 1];
+                const progress = (current - lower.floor) / (upper.floor - lower.floor);
+                return lower[key] + (upper[key] - lower[key]) * progress;
+            }
+        }
+
+        return steps[steps.length - 1][key];
+    }
+
+    getTowerBonusFactors(floor = this.gameState?.tower?.currentFloor || 1) {
+        return {
+            pokedex: this._interpolateTowerStep(TOWER_BONUS_FACTOR_STEPS, floor, 'pokedex'),
+            talent: this._interpolateTowerStep(TOWER_BONUS_FACTOR_STEPS, floor, 'talent'),
+            gem: this._interpolateTowerStep(TOWER_BONUS_FACTOR_STEPS, floor, 'gem'),
+        };
     }
 
     // 檢查挑戰塔是否解鎖（帕底亞地區通關）
@@ -4608,7 +5075,7 @@ _isRouteCompleteByCondition(routeId) {
 
     // 獲取挑戰塔某層的怪物等級
     getTowerFloorLevel(floor) {
-        return TOWER_BASE_LEVEL + (floor - 1) * TOWER_LEVEL_INCREMENT;
+        return Math.round(this._interpolateTowerStep(TOWER_LEVEL_STEPS, floor, 'level'));
     }
 
     // 獲取種族值>500的寶可夢ID候選池（快取）
