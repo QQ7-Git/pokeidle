@@ -145,7 +145,16 @@ class GameUI {
         });
         document.getElementById('btn-region-rewards').addEventListener('click', () => this.showRegionRewards());
         const statDialog = document.getElementById('stat-sources-dialog');
-        document.getElementById('team-list').addEventListener('click', event => {
+        const teamList = document.getElementById('team-list');
+        teamList.addEventListener('click', event => {
+            if (event.target.closest('#btn-battle-speed')) {
+                const enabled = !this.game.isBattleSpeedEnabled();
+                if (this.game.setBattleSpeedEnabled(enabled)) {
+                    this.renderTeam();
+                    this.showToast(enabled ? '⚡ 戰鬥速度已切換為 1.5 倍' : '⚔️ 戰鬥速度已切換為正常');
+                }
+                return;
+            }
             if (event.target.closest('#btn-stat-sources')) statDialog.showModal();
         });
         const teamDialog = document.getElementById('team-detail-dialog');
@@ -576,6 +585,7 @@ class GameUI {
                 }
                 // 合眾徽章解鎖時同步解鎖技能系統
                 if (data.regionId === 'unova') {
+                    if (this.currentTab === 'tab-battle') this.renderTeam();
                     this.updateSkillTabVisibility();
                     setTimeout(() => {
                         this.showToast('⚡ 技能系統已解鎖！1000級以上寶可夢可升級技能');
@@ -1276,7 +1286,10 @@ class GameUI {
                 rateHtml = `<span class="team-rate-info">${parts.join(' ')}</span>`;
             }
         }
-        teamList.innerHTML = '<h3 class="team-list-heading"><span>⚔️ 我的隊伍 (' + this.game.gameState.team.length + '/6)</span><span class="team-heading-actions">' + rateHtml + '<button id="btn-recommend-team" class="team-stat-sources-btn" type="button">🧩 推薦隊伍</button><button id="btn-stat-sources" class="team-stat-sources-btn" type="button">📊 計算公式</button></span></h3>';
+        const battleSpeedButton = this.game.hasBadge('unova')
+            ? `<button id="btn-battle-speed" class="battle-speed-button" type="button" aria-pressed="${this.game.isBattleSpeedEnabled()}" aria-label="${this.game.isBattleSpeedEnabled() ? '停用戰鬥 1.5 倍速' : '啟用戰鬥 1.5 倍速'}">${this.game.isBattleSpeedEnabled() ? '⚡ 1.5× 已啟用' : '⚔️ 1× 正常'}</button>`
+            : '';
+        teamList.innerHTML = '<h3 class="team-list-heading"><span class="team-heading-title"><span>⚔️ 我的隊伍 (' + this.game.gameState.team.length + '/6)</span>' + battleSpeedButton + '</span><span class="team-heading-actions">' + rateHtml + '<button id="btn-recommend-team" class="team-stat-sources-btn" type="button">🧩 推薦隊伍</button><button id="btn-stat-sources" class="team-stat-sources-btn" type="button">📊 計算公式</button></span></h3>';
         const encounterRates = this.game.getWildEncounterRates();
         const formatChance = value => `${(value * 100).toFixed(6).replace(/\.?0+$/, '')}%`;
 
@@ -1307,7 +1320,7 @@ class GameUI {
             const battleStats = this.game.calculateBattleStats(index);
             const expProgress = this.game.getExpProgress(pokemonId);
             const catchupPercent = Math.round((this.game.getTeamCatchupMultiplier(pokemonId) - 1) * 1000) / 10;
-            const teamDisplayName = POKEMON_DATA[pokemonId]?.name || pokemon.name;
+            const teamDisplayName = pokemon.name || POKEMON_DATA[pokemonId]?.name;
 
             const formTypes = this.game.getPokemonTypes(pokemonId, pokemon);
             const typeBadges = formTypes.map(t =>
@@ -2034,7 +2047,7 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
             johto: { reward: '金幣 2 倍' },
             hoenn: { unlock: '樹果系統', reward: '經驗 +50%' },
             sinnoh: { reward: '閃耀護符：閃光機率 2 倍' },
-            unova: { unlock: '技能系統', reward: '已完成寶可夢較少出現' },
+            unova: { unlock: '技能系統', reward: '已達 6V 且閃光的寶可夢出現權重降低 90%；解鎖戰鬥 1.5 倍速切換' },
             kalos: { reward: '樹果成熟時間減半' },
             alola: { unlock: '天賦系統', reward: '寶石數值偏高' },
             galar: { reward: '樹果收穫 2 倍' },
@@ -3693,8 +3706,8 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
                         <h4>⚔️ 戰鬥屬性來源</h4>
                         <ul>
                             <li><strong>基礎面板</strong>：由種族值、等級、個體值共同決定。</li>
-                            <li><strong>隊伍加成</strong>：隊伍其他成員按比例提供屬性支援。</li>
-                            <li><strong>圖鑑加成</strong>：已捕獲且不在隊伍中的寶可夢也會提供小比例加成。</li>
+                            <li><strong>出戰屬性公式</strong>：自身屬性（含圖鑑加成）＋未被合體收納的其他隊友各提供 20% 自身屬性（不重複套用圖鑑加成），再依序套用寶石與天賦加成。</li>
+                            <li><strong>圖鑑加成</strong>：已捕獲圖鑑項目提供自身能力加成，並計入出戰屬性。</li>
                             <li><strong>寶石/徽章詞條</strong>：會心、閃避、傷害修正、勝利回覆等額外效果。</li>
                             <li><strong>屬性剋制</strong>：攻擊與防禦屬性關係會改變最終傷害。</li>
                         </ul>

@@ -796,6 +796,24 @@ body {
     margin-bottom: 12px;
 }
 
+.battle-speed-button {
+    min-height: 30px;
+    padding: 5px 10px;
+    border: 1px solid var(--accent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--accent) 16%, var(--bg-card));
+    color: var(--text-primary);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.battle-speed-button:hover,
+.battle-speed-button[aria-pressed="true"] {
+    background: var(--accent);
+    color: #fff;
+}
+
 .team-rate-info {
     display: flex;
     gap: 8px;

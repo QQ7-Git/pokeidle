@@ -42,9 +42,10 @@ const BADGE_DATA = {
         name: '合眾徽章',
         icon: '⚡',
         description: '合眾地區解鎖後，完成合眾圖鑑獲得',
-        effect: '已6V且閃光的寶可夢出現機率降低',
+        effect: '已達 6V 且閃光的寶可夢出現權重降低 90%；解鎖戰鬥速度 1.5 倍切換',
         effectType: 'completed_weight_reduce',
         value: 9 / 10, // 權重減少 9/10
+        battleSpeedMultiplier: 1.5,
     },
     kalos: {
         name: '卡洛斯徽章',

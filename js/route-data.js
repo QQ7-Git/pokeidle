@@ -1461,7 +1461,7 @@ const REGIONS = {
         id: 'unova',
         name: '合眾地區',
         nameEn: 'Unova',
-        description: '第五世代寶可夢的故鄉，擁有繁華的都市與廣袤的自然。需要集齊神奧地區所有寶可夢才能前往。完成合眾圖鑑可獲得徽章，讓已達 6V 且閃光的寶可夢出現權重降低 90%。',
+        description: '第五世代寶可夢的故鄉，擁有繁華的都市與廣袤的自然。需要集齊神奧地區所有寶可夢才能前往。完成合眾圖鑑可獲得徽章，讓已達 6V 且閃光的寶可夢出現權重降低 90%，並解鎖戰鬥速度 1.5 倍切換。',
         unlockCondition: { type: 'pokedex_complete', region: 'sinnoh', range: [387, 493] },
         routes: [
             {

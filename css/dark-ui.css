@@ -433,6 +433,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #team-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 0; align-items: start; }
 #team-list > h3 { grid-column: 1 / -1; }
 .team-list-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; font-size: 14px; }
+.team-heading-title { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .team-heading-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .team-heading-actions .team-rate-info { flex-wrap: wrap; }
 #team-list .team-slot { position: relative; min-width: 0; height: auto; align-self: start; padding: 7px; gap: 3px; }

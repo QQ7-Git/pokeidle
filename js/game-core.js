@@ -1058,7 +1058,7 @@ class GameCore {
                 playTime: 0,
                 offlinePlayTime: 0,
             },
-            settings: {},
+            settings: { battleSpeedEnabled: false },
             // 樹果系統
             berryPlots: [],         // 種植槽 [{ berryId, plantedAt }]  成熟判定: Date.now() - plantedAt >= BERRY_GROW_TIME
             berryBag: {},           // 樹果背包 { berryId: count }
@@ -2088,12 +2088,32 @@ class GameCore {
 
     // ===================== 攻擊間隔計算 =====================
     // 反比例曲線，前期平緩，後期持續有提升，無限趨近100ms
+    isBattleSpeedEnabled() {
+        return this.hasBadge('unova') && this.gameState?.settings?.battleSpeedEnabled === true;
+    }
+
+    getBattleSpeedMultiplier() {
+        return this.isBattleSpeedEnabled() ? (BADGE_DATA.unova.battleSpeedMultiplier || 1) : 1;
+    }
+
+    setBattleSpeedEnabled(enabled) {
+        if (!this.gameState || !this.hasBadge('unova')) return false;
+        this.gameState.settings = this.gameState.settings || {};
+        this.gameState.settings.battleSpeedEnabled = !!enabled;
+        if (this.currentBattle) {
+            this.currentBattle.playerNextAttack = this.getAttackInterval(this.currentBattle.playerStats.speed);
+            this.currentBattle.enemyNextAttack = this.getAttackInterval(this.currentBattle.wildStats.speed);
+        }
+        this.save();
+        return true;
+    }
+
     getAttackInterval(speed) {
         // interval = 100 + 1900 / (1 + speed / 14000)
         // speed=10 → 1999ms, speed=10000 → 911ms, speed=100000 → 377ms
         // speed → ∞ 時趨近100ms，但永遠達不到
         const interval = 100 + 1900 / (1 + speed / 14000);
-        return interval;
+        return interval / this.getBattleSpeedMultiplier();
     }
 
     // ===================== 戰鬥系統 =====================
