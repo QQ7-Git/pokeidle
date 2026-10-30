@@ -12,7 +12,7 @@
         <!-- 頂部狀態列 -->
         <header id="header">
             <div class="brand-mark" aria-hidden="true"><span></span></div>
-            <div class="brand-copy"><h1 class="brand-eyebrow">PokéIdle</h1><span class="version-tag">v1.5.1</span></div>
+            <div class="brand-copy"><h1 class="brand-eyebrow">PokéIdle</h1><span class="version-tag">v1.5.2</span></div>
         </header>
 
         <!-- 主內容區 -->
@@ -316,12 +316,13 @@
                             <span class="toggle-slider"></span>
                             <span class="toggle-label">自動更換最優寶可夢出戰</span>
                         </label>
-                        <p class="setting-desc">遭遇新敵人時，依屬性、技能、攻擊速度與一擊必殺策略選擇出戰寶可夢。</p>
+                        <p class="setting-desc">遭遇新敵人時，依攻擊屬性、技能、速度與所選策略決定出戰寶可夢。</p>
                         <div id="oneshot-strategy-group" class="setting-radio-group" style="display:none;">
-                            <p class="setting-radio-label">⚡ 一擊必殺時優先選擇：</p>
+                            <p class="setting-radio-label">⚡ 自動出戰策略：</p>
                             <label class="setting-radio"><input type="radio" name="oneshot-strategy" value="fastest"> 🏃 速度最快（清怪更快）</label>
                             <label class="setting-radio"><input type="radio" name="oneshot-strategy" value="lowest_level"> 📈 等級最低（練級優先）</label>
                             <label class="setting-radio"><input type="radio" name="oneshot-strategy" value="no_change"> 🔒 不改變（保持當前出戰）</label>
+                            <label class="setting-radio"><input type="radio" name="oneshot-strategy" value="balanced"> ⚖️ 平衡（兼顧輸出與生存）</label>
                         </div>
                         <label class="setting-toggle" id="setting-auto-route-wrapper">
                             <input type="checkbox" id="setting-auto-route">
@@ -345,7 +346,8 @@
                     </div>
                     <section class="settings-section update-history">
                         <h3>📋 更新紀錄</h3>
-                        <details open><summary>v1.5.1 — 背景戰鬥改善</summary><ul><li>切換分頁時持續戰鬥，不再觸發離線結算。</li></ul></details>
+                        <details open><summary>v1.5.2 — 自動出戰策略</summary><ul><li>新增平衡策略，選隊時兼顧輸出與生存。</li></ul></details>
+                        <details><summary>v1.5.1 — 背景戰鬥改善</summary><ul><li>切換分頁時持續戰鬥，不再觸發離線結算。</li></ul></details>
                         <details open><summary>v1.5.0 — 屬性技能共享</summary><ul><li>技能依屬性全存檔共享；Lv.500 可使用，Lv.1000 可升級。</li><li>雙屬性升級可選一種屬性；一鍵升級也可逐隻選擇。</li><li>依實際傷害選招；雙屬性技能全解鎖時不列入普通攻擊。</li></ul></details>
                         <details><summary>v1.4.0 — 合眾徽章戰鬥加速</summary><ul><li>新增合眾徽章戰鬥 1.5 倍速切換。</li><li>修正合體寶可夢名稱並更新說明。</li></ul></details>
                         <details><summary>v1.3.0 — 系統與戰鬥平衡更新</summary><ul><li>新增寶可夢型態、合體與圖鑑里程碑獎勵。</li><li>重整樹果能力成長與地區遭遇等級。</li><li>調整挑戰塔難度；241 層起取消我方屬性克制並降低 20% 傷害。</li><li>改善隊伍、戰鬥資訊與型態操作介面。</li></ul></details>

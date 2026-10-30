@@ -1874,6 +1874,70 @@ class GameCore {
         return Math.max(1, Math.floor(damage * random));
     }
 
+    // Deterministic expected damage for auto-switch scoring; mirrors the normal hit roll without consuming RNG.
+    _estimateExpectedAutoSwitchDamage(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, skillPower = 0, skillType = '') {
+        const power = skillPower > 0 ? skillPower : 50;
+        let damage = this._getDamageBase(attackerLevel, attackStat, Math.max(1, defenseStat), power);
+        const damageTypes = skillPower > 0 && skillType ? [skillType] : attackerTypes;
+        if (damageTypes?.length && defenderTypes?.length) {
+            damage = Math.floor(damage * getBestTypeEffectiveness(damageTypes, defenderTypes).multiplier);
+        }
+
+        let expectedDamage = 0;
+        for (const [criticalHit, probability] of [[false, 0.95], [true, 0.05]]) {
+            const rolledDamage = criticalHit ? Math.floor(damage * 1.5) : damage;
+            for (let roll = 85; roll <= 100; roll++) {
+                expectedDamage += probability * Math.max(1, Math.floor(rolledDamage * roll / 100)) / 16;
+            }
+        }
+        return expectedDamage;
+    }
+
+    _getBalancedAutoSwitchScore(estimatedDamage, attackInterval, enemyHp, playerHp, incomingDps) {
+        const outgoingDps = estimatedDamage / Math.max(1, attackInterval);
+        if (!(outgoingDps > 0)) return 0;
+        const estimatedKillTime = enemyHp / outgoingDps;
+        if (!(incomingDps > 0)) return outgoingDps;
+        const estimatedSurvivalTime = playerHp / incomingDps;
+        return outgoingDps * Math.min(1, estimatedSurvivalTime / Math.max(1, estimatedKillTime));
+    }
+
+    _getAutoSwitchIncomingDps(wildPokemon, enemyStats, playerStats, playerTypes) {
+        const towerSkill = this._towerMode ? this._getTowerEnemySkill(wildPokemon.id, playerTypes) : null;
+        const enemyTypes = towerSkill ? [towerSkill.type] : this.getPokemonTypes(wildPokemon.id, wildPokemon);
+        const damage = this._estimateExpectedAutoSwitchDamage(
+            wildPokemon.level,
+            enemyStats.attack,
+            playerStats.defense,
+            enemyTypes,
+            playerTypes,
+            towerSkill?.power || 0,
+            towerSkill?.type || ''
+        );
+        const dodgeRate = Math.min(75, Number(this.getBattleGemBonuses().dodge_rate) || 0) / 100;
+        return damage * (1 - dodgeRate) / Math.max(1, this.getAttackInterval(enemyStats.speed));
+    }
+
+    _selectAutoSwitchCandidate(candidates, strategy, currentIndex) {
+        if (!candidates.length) return null;
+        if (strategy === 'no_change') {
+            const current = candidates.find(candidate => candidate.index === currentIndex);
+            if (current?.canOneShot) return current;
+        }
+
+        return [...candidates].sort((a, b) => {
+            if (a.canOneShot !== b.canOneShot) return a.canOneShot ? -1 : 1;
+            if (a.canOneShot) {
+                if (strategy === 'lowest_level') return a.level - b.level;
+                return (a.atkInterval ?? a.interval) - (b.atkInterval ?? b.interval);
+            }
+            if (strategy === 'balanced') {
+                return b.balanceScore - a.balanceScore || b.dps - a.dps;
+            }
+            return b.dps - a.dps;
+        })[0];
+    }
+
     // #6 接受預計算的暴擊率和暴擊倍率，避免每次呼叫 getGemBonuses/getTalentValue
     _calculateDamageOffline(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer, skillPower, cachedCritRate, cachedCritMultiplier, skillType = '') {
         const power = skillPower > 0 ? skillPower : 50;
@@ -1984,31 +2048,19 @@ class GameCore {
             const canOneShot = minDmg >= enemyHp;
             const dps = estimatedDmg / atkInterval;
 
-            candidates.push({ index: i, estimatedDmg, atkInterval, canOneShot, dps, level });
+            const balanceScore = oneShotStrategy === 'balanced'
+                ? this._getBalancedAutoSwitchScore(
+                    estimatedDmg,
+                    atkInterval,
+                    enemyHp,
+                    stats.hp,
+                    this._getAutoSwitchIncomingDps(wildPokemon, enemyStats, stats, playerTypes)
+                )
+                : 0;
+            candidates.push({ index: i, estimatedDmg, atkInterval, canOneShot, dps, balanceScore, level });
         }
 
-        if (candidates.length === 0) return -1;
-
-        if (oneShotStrategy === 'no_change') {
-            const currentCandidate = candidates.find(c => c.index === this.gameState.activePokemonIndex);
-            if (currentCandidate && currentCandidate.canOneShot) {
-                return this.gameState.activePokemonIndex;
-            }
-        }
-
-        candidates.sort((a, b) => {
-            if (a.canOneShot && !b.canOneShot) return -1;
-            if (!a.canOneShot && b.canOneShot) return 1;
-            if (a.canOneShot && b.canOneShot) {
-                if (oneShotStrategy === 'lowest_level') {
-                    return a.level - b.level;
-                }
-                return a.atkInterval - b.atkInterval;
-            }
-            return b.dps - a.dps;
-        });
-
-        return candidates[0].index;
+        return this._selectAutoSwitchCandidate(candidates, oneShotStrategy, this.gameState.activePokemonIndex)?.index ?? -1;
     }
 
     // #3 刷寫圖鑑經驗累積器
@@ -2988,17 +3040,31 @@ class GameCore {
             const minDamage = Math.max(1, Math.floor(estimatedDamage * 0.85));
             const interval = this.getAttackInterval(stats.speed);
             const time = Math.ceil(profile.stats.hp / minDamage) * interval;
+            const canOneShot = minDamage >= profile.stats.hp;
+            const balancedMode = this.gameState.settings?.autoSwitchBest && this.gameState.settings?.oneShotStrategy === 'balanced';
+            const incomingDps = balancedMode
+                ? this._getAutoSwitchIncomingDps(profile.wild, profile.stats, stats, this.getPokemonTypes(id)) : 0;
+            const balanceScore = balancedMode
+                ? this._getBalancedAutoSwitchScore(estimatedDamage, interval, profile.stats.hp, stats.hp, incomingDps) : 0;
+            const balancedTime = canOneShot || !balancedMode ? time : profile.stats.hp / Math.max(balanceScore, 0.001);
             const enemyEffect = getBestTypeEffectiveness(profile.types, this.getPokemonTypes(id)).multiplier;
             const incoming = Math.max(1, Math.floor((Math.floor(((2 * profile.wild.level / 5 + 2) * 50 * profile.stats.attack / Math.max(1, stats.defense)) / 50) + 2) * enemyEffect));
             const threatened = refine && Math.floor(time / this.getAttackInterval(profile.stats.speed)) * incoming >= stats.hp;
-            return { time: time + (threatened ? 60000 : 0), interval, level: pokemon.level, canOneShot: minDamage >= profile.stats.hp, dps: estimatedDamage / interval };
+            return {
+                time: time + (threatened ? 60000 : 0), balancedTime,
+                interval, level: pokemon.level, canOneShot, dps: estimatedDamage / interval, balanceScore,
+            };
         };
         const ranked = candidates.map(id => {
             const pokemon = this.createPokemon(id, true);
             const stats = this.calculateStats(pokemon);
             const power = this.calculatePower(id, true);
             const potential = this.calculatePotential(id);
-            const times = profiles.map(profile => estimate(id, stats, profile).time);
+            const useBalanced = this.gameState.settings?.autoSwitchBest && this.gameState.settings?.oneShotStrategy === 'balanced';
+            const times = profiles.map(profile => {
+                const result = estimate(id, stats, profile);
+                return useBalanced ? result.balancedTime : result.time;
+            });
             const average = times.reduce((sum, time, i) => sum + time * profiles[i].weight, 0) / totalWeight;
             return { id, power, potential, times, score: 1 / average };
         });
@@ -3049,15 +3115,9 @@ class GameCore {
                 if (autoSwitch) {
                     averageTime = profiles.reduce((sum, profile, j) => {
                         const options = estimates.map((values, i) => ({ ...values[j], index: i }));
-                        const current = options[activeIndex];
-                        let chosen;
-                        if (strategy === 'no_change' && current.canOneShot) chosen = current;
-                        else chosen = options.sort((a, b) => {
-                            if (a.canOneShot !== b.canOneShot) return a.canOneShot ? -1 : 1;
-                            if (a.canOneShot) return strategy === 'lowest_level' ? a.level - b.level : a.interval - b.interval;
-                            return b.dps - a.dps;
-                        })[0];
-                        return sum + chosen.time * profile.weight;
+                        const chosen = this._selectAutoSwitchCandidate(options, strategy, activeIndex);
+                        const estimatedTime = strategy === 'balanced' ? chosen.balancedTime : chosen.time;
+                        return sum + estimatedTime * profile.weight;
                     }, 0) / totalWeight;
                     const chosenIndex = this.getBestTeamMemberForEnemy(enemy);
                     if (chosenIndex >= 0) activeIndex = chosenIndex;
@@ -4584,39 +4644,20 @@ _isRouteCompleteByCondition(routeId) {
             const canOneShot = minDmg >= enemyHp;
             // DPS 分數 = 單次傷害 / 攻擊間隔
             const dps = estimatedDmg / atkInterval;
+            const balanceScore = oneShotStrategy === 'balanced'
+                ? this._getBalancedAutoSwitchScore(
+                    estimatedDmg,
+                    atkInterval,
+                    enemyHp,
+                    stats.hp,
+                    this._getAutoSwitchIncomingDps(wildPokemon, enemyStats, stats, playerTypes)
+                )
+                : 0;
 
-            candidates.push({ index: i, estimatedDmg, atkInterval, canOneShot, dps, level: pokemon.level });
+            candidates.push({ index: i, estimatedDmg, atkInterval, canOneShot, dps, balanceScore, level: pokemon.level });
         }
 
-        if (candidates.length === 0) return -1;
-
-        // 一擊必殺策略為"不改變"時：如果當前出戰寶可夢能一擊，則不切換
-        if (oneShotStrategy === 'no_change') {
-            const currentCandidate = candidates.find(c => c.index === this.gameState.activePokemonIndex);
-            if (currentCandidate && currentCandidate.canOneShot) {
-                return this.gameState.activePokemonIndex;
-            }
-        }
-
-        // 排序策略
-        candidates.sort((a, b) => {
-            // 能一擊的排在前面
-            if (a.canOneShot && !b.canOneShot) return -1;
-            if (!a.canOneShot && b.canOneShot) return 1;
-            // 都能一擊擊殺 → 根據策略選擇
-            if (a.canOneShot && b.canOneShot) {
-                if (oneShotStrategy === 'lowest_level') {
-                    // 等級低的優先（練級）
-                    return a.level - b.level;
-                }
-                // 預設 fastest：攻擊間隔短（攻速快）的優先
-                return a.atkInterval - b.atkInterval;
-            }
-            // 都不能一擊擊殺 → DPS 高的優先
-            return b.dps - a.dps;
-        });
-
-        return candidates[0].index;
+        return this._selectAutoSwitchCandidate(candidates, oneShotStrategy, this.gameState.activePokemonIndex)?.index ?? -1;
     }
 
     // 將該寶可夢升級的技能等級共享至升級當時的屬性。

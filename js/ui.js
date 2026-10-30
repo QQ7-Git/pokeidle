@@ -1961,8 +1961,8 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                 this.game.gameState.settings = this.game.gameState.settings || {};
                 this.game.gameState.settings.oneShotStrategy = radio.value;
                 this.game.save();
-                const labels = { fastest: '🏃 速度最快', lowest_level: '📈 等級最低', no_change: '🔒 不改變' };
-                this.showToast(`⚡ 一擊必殺策略: ${labels[radio.value]}`);
+                const labels = { fastest: '🏃 速度最快', lowest_level: '📈 等級最低', no_change: '🔒 不改變', balanced: '⚖️ 平衡' };
+                this.showToast(`⚡ 自動出戰策略：${labels[radio.value] || radio.value}`);
             });
         });
     }
