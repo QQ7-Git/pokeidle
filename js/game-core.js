@@ -35,6 +35,7 @@ class GameCore {
         this._berryGrowthLastAt = Date.now();
         this._berryGrowthActive = document.visibilityState !== 'hidden';
         this._hiddenAt = this._berryGrowthActive ? null : this._berryGrowthLastAt;
+        this._hiddenBattleLive = !this._berryGrowthActive;
         this._hiddenHuntingLive = false;
         this._playTimeStartedAt = null;
         this.onBattleEvent = null; // UI回撥
@@ -156,15 +157,15 @@ class GameCore {
         this._syncBerryGrowth(this._hiddenAt);
         this._berryGrowthActive = false;
         this._hiddenWasHealing = !!this.healTimer;
+        this._hiddenBattleLive = !this._towerMode;
         this._hiddenHuntingLive = this.gameState?.currentRoute === 'free_hunting' && !this._towerMode;
-        if (this._hiddenHuntingLive) {
-            if (this.battleTimer) this.startBattleLoop();
-            if (this.healTimer) {
-                clearInterval(this.healTimer);
-                this.healTimer = null;
-                this.startHealingAfterDefeat();
+        if (this._hiddenBattleLive) {
+            // Keep the worker-driven battle loop alive while this page is in a background tab.
+            if (!this.battleTimer && this.currentBattle?.wildCurrentHp > 0 && this.currentBattle?.playerCurrentHp > 0) {
+                this.startBattleLoop();
             }
         } else {
+            // Tower battles pause in the background and resume without offline simulation.
             this.stopBattle();
         }
         this._updatePlayTime(this._hiddenAt, true);
@@ -180,20 +181,16 @@ class GameCore {
         this._hiddenAt = null;
         this._playTimeStartedAt = now;
 
-        // 自由狩獵場在背景即時戰鬥，不再把這段時間當作離線模擬。
-        if (this._hiddenHuntingLive) {
+        // A page that remained open in a background tab continues normal battle progress.
+        if (this._hiddenBattleLive) {
+            this._hiddenBattleLive = false;
             this._hiddenHuntingLive = false;
             if (this.gameState?.stats) this.gameState.stats.playTime = (this.gameState.stats.playTime || 0) + Math.max(0, elapsed);
             this._hiddenWasHealing = false;
             if (this.battleTimer) this.startBattleLoop();
-            else if (this.healTimer) {
-                clearInterval(this.healTimer);
-                this.healTimer = null;
-                this.startHealingAfterDefeat();
-            } else if (!this._nextBattleTimeout) {
-                if (this.currentBattle?.wildCurrentHp > 0 && this.currentBattle?.playerCurrentHp > 0) this.startBattleLoop();
-                else this.startBattle();
-            }
+            else if (this.healTimer || this._nextBattleTimeout) return;
+            else if (this.currentBattle?.wildCurrentHp > 0 && this.currentBattle?.playerCurrentHp > 0) this.startBattleLoop();
+            else this.startBattle();
             return;
         }
 
@@ -2228,7 +2225,7 @@ class GameCore {
         this._stopBattleTimer();
         // 網頁若一開始就在背景開啟，載入狩獵場後也要啟動即時戰鬥。
         if (!this._berryGrowthActive && this.gameState?.currentRoute === 'free_hunting' && !this._towerMode) this._hiddenHuntingLive = true;
-        if (!this._berryGrowthActive && !this._hiddenHuntingLive) return;
+        if (!this._berryGrowthActive && !this._hiddenBattleLive && !this._hiddenHuntingLive) return;
         if (this._useWorkerTimer) {
             const cb = () => { this.battleTick(); };
             this.battleTimer = this._workerSetInterval(cb, 50);
