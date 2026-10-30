@@ -588,7 +588,7 @@ class GameUI {
                     if (this.currentTab === 'tab-battle') this.renderTeam();
                     this.updateSkillTabVisibility();
                     setTimeout(() => {
-                        this.showToast('⚡ 技能系統已解鎖！1000級以上寶可夢可升級技能');
+                        this.showToast(`⚡ 技能系統已解鎖！Lv.${SKILL_LEVEL_REQUIREMENT} 可升級技能，Lv.${SKILL_USE_LEVEL_REQUIREMENT} 可使用共享技能`);
                     }, 2000);
                 }
                 // 阿羅拉徽章解鎖時同步解鎖天賦系統
@@ -837,34 +837,36 @@ class GameUI {
     _updateBattleSkills(wildTypes = null) {
         const playerId = this.game.gameState.team[this.game.gameState.activePokemonIndex];
         const enemyId = this.game.currentBattle?.wild?.id;
-        const types = wildTypes || POKEMON_DATA[enemyId]?.types || [];
+        const types = wildTypes || this.game.getPokemonTypes(enemyId, this.game.currentBattle?.wild);
         const selected = this.game._getBestSkillForEnemy(playerId, types);
         const skills = this.game.getSkillForPokemon(playerId)?.skills || [];
-        this._setBattleSkills('player-battle-skill', skills, selected.type);
+        this._setBattleSkills('player-battle-skill', skills, selected.type, selected.name, skills.length < 2);
         const towerSkill = this.game._towerMode && this.game.currentBattle?.wild?.isTowerEnemy
             ? this.game._getTowerEnemySkill(enemyId, POKEMON_DATA[playerId]?.types || []) : null;
         const enemySkills = towerSkill ? (POKEMON_DATA[enemyId]?.types || []).flatMap(type => {
             const skill = SKILL_DATA[type]?.find(entry => entry.level === MAX_SKILL_LEVEL);
             return skill ? [{ ...skill, type }] : [];
         }) : [];
-        this._setBattleSkills('enemy-battle-skill', enemySkills, towerSkill?.type || '');
+        this._setBattleSkills('enemy-battle-skill', enemySkills, towerSkill?.type || '', towerSkill?.name || '');
     }
 
-    _setBattleSkills(elementId, skills, selectedType) {
+    _setBattleSkills(elementId, skills, selectedType, selectedName = '', includeBasicAttack = false) {
         const container = document.getElementById(elementId);
-        const key = JSON.stringify([skills, selectedType]);
+        const candidates = includeBasicAttack ? [{ name: '普通攻擊', type: '' }, ...skills] : (skills.length ? skills : [{ name: '普通攻擊', type: '' }]);
+        const key = JSON.stringify([candidates, selectedType, selectedName]);
         if (container.dataset.skillsKey === key) return;
         container.dataset.skillsKey = key;
         container.replaceChildren();
-        for (const skill of skills.length ? skills : [{ name: '普通攻擊', type: '' }]) {
+        for (const skill of candidates) {
             const label = document.createElement('span');
             label.textContent = skill.name;
             label.className = `type-badge ${TYPE_NAMES[skill.type] ? skill.type : 'battle-skill-basic'}`;
-            if (skills.length > 1 && skill.type !== selectedType) {
+            const isSelected = skill.name === selectedName && skill.type === selectedType;
+            if (candidates.length > 1 && !isSelected) {
                 label.classList.add('battle-skill-unused');
                 label.title = '目前未使用的技能';
-            } else if (skill.type === selectedType && selectedType) {
-                label.title = '目前使用的技能';
+            } else if (isSelected) {
+                label.title = '目前使用的招式';
             }
             container.appendChild(label);
         }
@@ -1372,7 +1374,7 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
 
             // 技能等級顯示（0不顯示）
             const skillLevel = storedData ? (storedData.skillLevel || 0) : 0;
-            const skillBadgeHtml = skillLevel > 0 ? ` <span class="team-skill-badge">⚡${skillLevel >= MAX_SKILL_LEVEL ? 'Max' : 'Lv.' + skillLevel}</span>` : '';
+            const skillBadgeHtml = skillLevel > 0 ? ' <span class="team-skill-badge" title="親自升級過技能，可免除Lv.500使用門檻">⚡技能</span>' : '';
             const canUpgradeSkill = this.game.isSkillUnlocked() && storedData && storedData.level >= SKILL_LEVEL_REQUIREMENT && skillLevel < MAX_SKILL_LEVEL;
             const terapagosEnergyHtml = Number(pokemonId) === 1024
                 ? this.getTerapagosEnergyHtml()
@@ -1710,27 +1712,71 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
         this._addToTeamWithAppearance(pokemonId, 'normal');
     }
 
+    _getSkillUpgradePreview(type, skillGain) {
+        const currentLevel = Math.max(0, Number(this.game.gameState.skillLevelsByType?.[type]) || 0);
+        const nextLevel = Math.min(MAX_SKILL_LEVEL, currentLevel + skillGain);
+        const currentSkill = SKILL_DATA[type]?.find(skill => skill.level === currentLevel) || null;
+        const nextSkill = SKILL_DATA[type]?.find(skill => skill.level === nextLevel) || null;
+        const describe = skill => skill ? `${skill.name}（威力 ${skill.power}）` : '尚未解鎖';
+        return {
+            currentLevel,
+            nextLevel,
+            currentText: describe(currentSkill),
+            nextText: describe(nextSkill),
+        };
+    }
+
     confirmSkillUpgrade(pokemonId) {
         const pokemonName = POKEMON_DATA[pokemonId]?.name;
         const stored = this.game.getStoredData(pokemonId);
         if (!pokemonName || !stored) return;
         const skillLevel = stored.skillLevel || 0;
         const skillGain = Math.max(0, Math.min(MAX_SKILL_LEVEL - skillLevel, Math.floor(stored.level / SKILL_LEVEL_REQUIREMENT)));
-        this.showConfirmDialog(
-            '升級技能',
-            `確定要升級 ${pokemonName} 的技能嗎？<br>技能等級：${skillLevel} → ${skillLevel + skillGain}（+${skillGain}）<br>⚠️ 寶可夢等級將重置為 1，經驗歸零且不返還；技能不超過 ${MAX_SKILL_LEVEL} 級。<br>等級重置後戰力會降低，可能無法打贏目前地圖的敵人。`,
-            () => {
-                const result = this.game.upgradeSkill(pokemonId);
-                if (result.success) {
-                    this.showToast(`⚡ ${pokemonName} 技能升至 Lv.${result.newSkillLevel}！等級重置後為 Lv.${result.newLevel}`);
-                    this._updateBattleSkills();
-                    if (this.currentTab === 'tab-pokedex') this.renderPokedex();
-                    this.renderTeam();
-                } else {
-                    this.showToast('⚠️ ' + result.message);
-                }
-            }
-        );
+        const types = this.game.getPokemonTypes(pokemonId);
+        if (!types.length) return;
+        let selectedType = types.length === 1 ? types[0] : null;
+        const typeOptions = types.map(type => {
+            const preview = this._getSkillUpgradePreview(type, skillGain);
+            return `<button class="skill-upgrade-option" type="button" data-skill-type="${type}" aria-pressed="false"><span class="skill-upgrade-option-head"><span class="type-badge ${type}">${TYPE_NAMES[type] || type}</span><span>Lv.${preview.currentLevel} → Lv.${preview.nextLevel}</span></span><span class="skill-upgrade-option-moves">${preview.currentText} → ${preview.nextText}</span></button>`;
+        }).join('');
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay skill-upgrade-overlay';
+        overlay.innerHTML = `
+            <div class="modal skill-upgrade-modal" role="dialog" aria-modal="true" aria-labelledby="skill-upgrade-title">
+                <h3 id="skill-upgrade-title">升級技能：選擇屬性</h3>
+                <p>選擇要提升的屬性技能；每次只升級一種。招式威力變化如下：</p>
+                <div class="skill-upgrade-options" role="group" aria-label="選擇升級屬性">${typeOptions}</div>
+                <p class="skill-upgrade-note">${pokemonName} 將重置為 Lv.1，並取得「⚡技能」標記，可免除 Lv.${SKILL_USE_LEVEL_REQUIREMENT} 使用門檻。</p>
+                <div class="modal-buttons"><button class="cancel-btn" type="button">取消</button><button class="confirm-btn" type="button" ${selectedType ? '' : 'disabled'}>確認升級</button></div>
+            </div>`;
+        document.body.appendChild(overlay);
+        const confirmButton = overlay.querySelector('.confirm-btn');
+        const chooseType = type => {
+            selectedType = type;
+            overlay.querySelectorAll('[data-skill-type]').forEach(button => {
+                button.setAttribute('aria-pressed', String(button.dataset.skillType === type));
+            });
+            confirmButton.disabled = false;
+            confirmButton.textContent = `確認升級「${TYPE_NAMES[type] || type}」技能`;
+        };
+        overlay.querySelectorAll('[data-skill-type]').forEach(button => button.addEventListener('click', () => chooseType(button.dataset.skillType)));
+        if (selectedType) chooseType(selectedType);
+        overlay.querySelector('.cancel-btn').addEventListener('click', () => this._dismissModalOverlay(overlay));
+        overlay.addEventListener('click', event => {
+            if (event.target === overlay) this._dismissModalOverlay(overlay);
+        });
+        confirmButton.addEventListener('click', () => {
+            if (!selectedType) return;
+            this._dismissModalOverlay(overlay, () => {
+                const result = this.game.upgradeSkill(pokemonId, selectedType);
+                if (!result.success) return this.showToast('⚠️ ' + result.message);
+                this.showToast(`⚡ ${pokemonName} 已升級${TYPE_NAMES[selectedType] || selectedType}技能；等級重置為 Lv.${result.newLevel}`);
+                this._updateBattleSkills();
+                this.renderSkillPage();
+                if (this.currentTab === 'tab-pokedex') this.renderPokedex();
+                this.renderTeam();
+            });
+        });
     }
 
     showDeoxysFormDialog(pokemonId, mode = 'edit') {
@@ -1988,6 +2034,7 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                 .filter(([id, stored]) => stored && POKEMON_DATA[id] && stored.level >= SKILL_LEVEL_REQUIREMENT && (stored.skillLevel || 0) < MAX_SKILL_LEVEL)
                 .map(([id, stored]) => ({
                     id: Number(id), level: stored.level, skill: stored.skillLevel || 0,
+                    types: this.game.getPokemonTypes(Number(id)),
                     gain: Math.min(MAX_SKILL_LEVEL - (stored.skillLevel || 0), Math.floor(stored.level / SKILL_LEVEL_REQUIREMENT)),
                 }));
             const candidates = getCandidates();
@@ -1998,29 +2045,48 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
             const list = candidates.map(p => {
                 const shiny = this.game.gameState.pokedexDisplay?.[p.id] === 'shiny';
                 const url = shiny ? getShinyPokemonSpriteUrl(p.id) : getPokemonSpriteUrl(p.id);
-                return `<span class="skill-bulk-row"><span class="skill-bulk-sprite"><img src="${url}" alt="" loading="lazy" onerror="fallbackPokemonSprite(this, ${p.id}, ${!!shiny}, '🔵')"></span><strong>${POKEMON_DATA[p.id].name}</strong><span>等級 ${p.level} → 1</span><span>技能 ${p.skill} → ${p.skill + p.gain}（+${p.gain}）</span></span>`;
+                const sharedTypes = p.types.map(type => {
+                    const preview = this._getSkillUpgradePreview(type, p.gain);
+                    const summary = `${TYPE_NAMES[type] || type} Lv.${preview.currentLevel}→${preview.nextLevel}：${preview.currentText}→${preview.nextText}`;
+                    return p.types.length > 1
+                        ? `<option value="${type}">${summary}</option>`
+                        : `<span>${summary}</span>`;
+                }).join('');
+                const targetControl = p.types.length > 1
+                    ? `<select class="skill-bulk-target" data-skill-target="${p.id}" aria-label="選擇${POKEMON_DATA[p.id].name}的升級屬性"><option value="">選擇升級屬性</option>${sharedTypes}</select>`
+                    : sharedTypes;
+                return `<span class="skill-bulk-row"><span class="skill-bulk-sprite"><img src="${url}" alt="" loading="lazy" onerror="fallbackPokemonSprite(this, ${p.id}, ${!!shiny}, '🔵')"></span><strong>${POKEMON_DATA[p.id].name}</strong><span>等級 ${p.level} → 1</span><span>個人升級 ${p.skill} → ${p.skill + p.gain}<br>${targetControl}</span></span>`;
             }).join('');
-            this.showConfirmDialog(
+            let bulkOverlay = null;
+            bulkOverlay = this.showConfirmDialog(
                 '一鍵升級技能',
-                `以下 ${candidates.length} 隻寶可夢將升級技能：<span class="skill-bulk-preview">${list}</span><br>⚠️ 上列寶可夢的等級將重置為 1，經驗歸零且不返還。<br>等級重置後隊伍戰力可能降低，無法打贏目前地圖的敵人。`,
+                `以下 ${candidates.length} 隻寶可夢將升級技能；雙屬性請各自選擇一種：<span class="skill-bulk-preview">${list}</span><br>⚠️ 升級者等級重置為 1，並取得「⚡技能」標記。`,
                 () => {
                     if (!this.game.isSkillUnlocked() || JSON.stringify(getCandidates()) !== JSON.stringify(candidates)) {
                         this.showToast('⚠️ 名單或等級已改變，請重新查看升級預覽');
                         return;
                     }
-                    const result = this.game.upgradeAllSkills();
+                    const typeSelections = Object.fromEntries([...bulkOverlay.querySelectorAll('[data-skill-target]')].map(select => [select.dataset.skillTarget, select.value]));
+                    const result = this.game.upgradeAllSkills(typeSelections);
                     if (result.success) {
-                        const names = result.results.slice(0, 5).map(r => `${r.name}→Lv.${r.newSkillLevel}`).join('、');
+                        const names = result.results.slice(0, 5).map(r => `${r.name}（${TYPE_NAMES[r.upgradedType] || r.upgradedType}）`).join('、');
                         const more = result.count > 5 ? `…等${result.count}只` : '';
-                        this.showToast(`⚡ 成功升級 ${result.count} 只寶可夢的技能！\n${names}${more}`);
+                        const skipped = result.skippedIds?.length ? `；${result.skippedIds.length} 隻未選屬性而略過` : '';
+                        this.showToast(`⚡ 成功升級 ${result.count} 隻寶可夢！${skipped}\n${names}${more}`);
                         this._updateBattleSkills();
                         this.renderPokedex();
+                        this.renderSkillPage();
                         this.renderTeam();
                     } else {
                         this.showToast('⚠️ ' + result.message);
                     }
                 }
             );
+            const targetSelects = [...bulkOverlay.querySelectorAll('[data-skill-target]')];
+            const confirmButton = bulkOverlay.querySelector('.confirm-btn');
+            const syncConfirm = () => { confirmButton.disabled = targetSelects.some(select => !select.value); };
+            targetSelects.forEach(select => select.addEventListener('change', syncConfirm));
+            syncConfirm();
         });
     }
 
@@ -2718,7 +2784,7 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
                     <div class="dex-detail">
                         <div class="dex-detail-header">
                             <span class="dex-level-badge">等級 ${storedData.level}</span>
-                            ${currentSkillLevel > 0 ? `<span class="dex-skill-badge">⚡ 技能 ${currentSkillLevel >= MAX_SKILL_LEVEL ? 'Max' : 'Lv.' + currentSkillLevel}</span>` : ''}
+                            ${currentSkillLevel > 0 ? '<span class="dex-skill-badge" title="親自升級過技能，可免除Lv.500使用門檻">⚡技能</span>' : ''}
                             ${inTeam ? `<span class="dex-in-team">在隊伍中</span>` : '<span style="color:var(--text-secondary);font-size:12px">已捕獲 · 不在隊伍中</span>'}
                         </div>
                         <div class="dex-power-potential">
@@ -2760,7 +2826,7 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
                 // 升級技能按鈕（需要技能系統已解鎖、等級>=1000、技能等級<8）
                 let skillBtnHtml = '';
                 if (skillUnlockedGlobal && storedData && storedData.level >= SKILL_LEVEL_REQUIREMENT && currentSkillLevel < MAX_SKILL_LEVEL) {
-                    skillBtnHtml = `<button class="dex-skill-btn" data-pokemon-id="${id}" title="每滿1000級提升1級技能；等級與經驗重置">⚡ 升級技能</button>`;
+                    skillBtnHtml = `<button class="dex-skill-btn" data-pokemon-id="${id}" title="Lv.${SKILL_LEVEL_REQUIREMENT}可升級並共享當前屬性技能；等級與經驗重置">⚡ 升級技能</button>`;
                 }
 
                 entry.innerHTML = `
@@ -3570,6 +3636,7 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
         });
 
         document.body.appendChild(overlay);
+        return overlay;
     }
 
     showAutoSettingsGuide() {
@@ -3805,12 +3872,14 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
         if (rulesEl) {
             rulesEl.innerHTML = `
                 <div class="skill-rules-list">
-                    <div class="skill-rule-item">📌 每隻寶可夢有獨立的<strong>技能等級</strong>（0~${MAX_SKILL_LEVEL}級），預設0級。</div>
-                    <div class="skill-rule-item">📌 當寶可夢等級 ≥ <strong>${SKILL_LEVEL_REQUIREMENT}</strong> 級時，可在圖鑑中點選「升級技能」按鈕。</div>
-                    <div class="skill-rule-item">📌 每滿 ${SKILL_LEVEL_REQUIREMENT} 級，技能等級增加 1（不超過上限）；升級後等級<strong>重置為1</strong>，經驗歸零且不返還。</div>
-                    <div class="skill-rule-item">📌 技能等級 > 0 時，戰鬥攻擊將使用該寶可夢對應屬性的<strong>技能威力</strong>（替代預設50威力）。</div>
-                    <div class="skill-rule-item">📌 雙屬性寶可夢會自動選擇對敵方<strong>剋制效果更好</strong>的屬性技能進行攻擊。</div>
-                    <div class="skill-rule-item">💡 前往<strong>圖鑑</strong>頁面，對≥${SKILL_LEVEL_REQUIREMENT}級的寶可夢使用「升級技能」按鈕提升實力！</div>
+                    <div class="skill-rule-item">📌 技能解鎖依<strong>屬性獨立共享</strong>，每種屬性各自記錄最高技能等級（上限 ${MAX_SKILL_LEVEL}）。</div>
+                    <div class="skill-rule-item">📌 寶可夢達 Lv.${SKILL_LEVEL_REQUIREMENT} 可升級技能；每次提升技能等級後，該寶可夢等級<strong>重置為 Lv.1</strong>，經驗歸零且不返還。</div>
+                    <div class="skill-rule-item">📌 雙屬性升級時選擇一種屬性，只有所選屬性的共享技能等級會提升。</div>
+                    <div class="skill-rule-item">📌 其他同屬性寶可夢達 Lv.${SKILL_USE_LEVEL_REQUIREMENT} 後可使用共享技能；親自升級過技能的寶可夢不受此等級門檻限制。</div>
+                    <div class="skill-rule-item">📌 普通攻擊與可用技能會比較對敵人的<strong>實際傷害</strong>；雙屬性若兩種技能都已解鎖，只比較兩種技能、不列入普通攻擊。技能依招式屬性計算相剋。</div>
+                    <div class="skill-rule-item">📌 「⚡技能」標記代表該寶可夢親自升級過技能、享有 Lv.${SKILL_USE_LEVEL_REQUIREMENT} 門檻豁免；不再顯示個別技能等級標記。</div>
+                    <div class="skill-rule-item">📌 技能天賦仍按所有寶可夢的<strong>個人累積升級次數</strong>計算，不會因屬性共享而重複計入共享等級。</div>
+                    <div class="skill-rule-item">💡 技能解鎖歸屬升級當時的屬性，不會因進化新增屬性而額外解鎖。</div>
                 </div>
             `;
         }
@@ -3819,14 +3888,7 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
         const tableEl = document.getElementById('skill-table-content');
         if (tableEl) {
             let html = '';
-            const maxSkillLevelByType = {};
-            for (const [id, stored] of Object.entries(this.game.gameState.caughtPokemon || {})) {
-                const skillLevel = Number(stored?.skillLevel) || 0;
-                if (skillLevel < 1) continue;
-                for (const type of this.game.getPokemonTypes(Number(id))) {
-                    maxSkillLevelByType[type] = Math.max(maxSkillLevelByType[type] || 0, skillLevel);
-                }
-            }
+            const maxSkillLevelByType = this.game.gameState.skillLevelsByType || {};
 
             for (const type in SKILL_DATA) {
                 const typeName = TYPE_NAMES[type] || type;
@@ -3946,7 +4008,7 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
                 if (talentId === 'skill_stat_bonus') {
                     const skillSum = this.game.getSkillLevelSum();
                     const actualBonus = this.game.getTalentStatBonusPercent();
-                    effectText = `技能等級之和(${skillSum}) × ${effectValue.toFixed(2)}% = <span class="effect-value">+${actualBonus.toFixed(2)}%</span> 全屬性`;
+                    effectText = `個人累積升級次數(${skillSum}) × ${effectValue.toFixed(2)}% = <span class="effect-value">+${actualBonus.toFixed(2)}%</span> 全屬性`;
                 } else if (talentId === 'gem_attr_boost') {
                     const choice = this.game.getTalentGemAttrChoice();
                     const choiceName = choice ? (GEM_ATTRIBUTES.find(a => a.id === choice)?.name || '未選擇') : '未選擇';

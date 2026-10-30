@@ -485,7 +485,7 @@ class GameCore {
             const wildTypes = this.getPokemonTypes(wildPokemon.id, wildPokemon);
 
             // 獲取最優技能（複用公共方法）
-            const bestSkill = this._getBestSkillForEnemy(s.activePokemonId, wildTypes);
+            const bestSkill = this._getBestSkillForEnemy(s.activePokemonId, wildTypes, s.cachedPlayerLevel, s.playerStats.attack, enemyStats.defense);
 
             // 模擬單場戰鬥
             let battleTime = 0;
@@ -515,7 +515,8 @@ class GameCore {
                         true,
                         bestSkill.power,
                         s.cachedCritRate,
-                        s.cachedCritMultiplier
+                        s.cachedCritMultiplier,
+                        bestSkill.type
                     );
                     enemyHp -= result.damage;
                 }
@@ -1045,6 +1046,8 @@ class GameCore {
             highestVisitedRoute: 'kanto_route1',
             pokedex: {},            // { pokemonId: 'seen' | 'caught' }
             caughtPokemon: {},      // { pokemonId: { ivs, level, exp } } - 按寶可夢自身ID儲存
+            skillLevelsByType: {},   // 各屬性獨立共享的最高技能等級
+            skillSystemVersion: 1,
             shinyDex: {},           // { pokemonId: true } - 已獲得閃光形態的寶可夢
             pokedexDisplay: {},     // { pokemonId: 'shiny' | undefined } - 圖鑑展示偏好（閃光/原始）
             gold: 0,                // 金幣
@@ -1621,26 +1624,33 @@ class GameCore {
     // ===================== 戰鬥公共方法（線上/離線複用） =====================
 
     // 獲取對敵方最優技能：返回 { power, name, type } 或 { power: 0, name: '', type: '' }
-    _getBestSkillForEnemy(pokemonId, wildTypes) {
-        const result = { power: 0, name: '', type: '' };
-        const skillInfo = this.getSkillForPokemon(pokemonId);
-        if (!skillInfo || skillInfo.skills.length === 0) return result;
+    _getBestSkillForEnemy(pokemonId, wildTypes, level = null, attackStat = 1, defenseStat = 1) {
+        const storedData = this.getStoredData(pokemonId);
+        const attackerLevel = level ?? storedData?.level ?? 1;
+        const pokemonTypes = this.getPokemonTypes(pokemonId);
+        const skillInfo = this.getSkillForPokemon(pokemonId, attackerLevel);
+        const candidates = [];
+        if (!skillInfo || skillInfo.skills.length < 2) {
+            candidates.push({ name: '普通攻擊', power: 50, type: '', effectivenessTypes: pokemonTypes });
+        }
+        if (skillInfo) candidates.push(...skillInfo.skills.map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));
 
-        let bestSkill = skillInfo.skills[0];
-        if (skillInfo.skills.length > 1) {
-            let bestMult = 0;
-            for (const sk of skillInfo.skills) {
-                const eff = getBestTypeEffectiveness([sk.type], wildTypes);
-                if (eff.multiplier > bestMult || bestMult === 0) {
-                    bestMult = eff.multiplier;
-                    bestSkill = sk;
-                }
+        const towerIgnoresType = this._towerMode &&
+            this.gameState.tower.currentFloor >= TOWER_NO_TYPE_ADVANTAGE_FLOOR;
+        let best = candidates[0];
+        let bestDamage = -1;
+        for (const candidate of candidates) {
+            const effectiveness = towerIgnoresType
+                ? 1
+                : getBestTypeEffectiveness(candidate.effectivenessTypes, wildTypes).multiplier;
+            const baseDamage = this._getDamageBase(attackerLevel, attackStat, Math.max(1, defenseStat), candidate.power);
+            const expectedDamage = Math.floor(baseDamage * effectiveness);
+            if (expectedDamage > bestDamage) {
+                best = candidate;
+                bestDamage = expectedDamage;
             }
         }
-        result.power = bestSkill.power;
-        result.name = bestSkill.name;
-        result.type = bestSkill.type;
-        return result;
+        return { power: best.type ? best.power : 0, name: best.name, type: best.type };
     }
 
     _getTowerEnemySkill(pokemonId, targetTypes) {
@@ -1868,15 +1878,16 @@ class GameCore {
     }
 
     // #6 接受預計算的暴擊率和暴擊倍率，避免每次呼叫 getGemBonuses/getTalentValue
-    _calculateDamageOffline(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer, skillPower, cachedCritRate, cachedCritMultiplier) {
+    _calculateDamageOffline(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer, skillPower, cachedCritRate, cachedCritMultiplier, skillType = '') {
         const power = skillPower > 0 ? skillPower : 50;
 
         // 基礎傷害
         let damage = this._getDamageBase(attackerLevel, attackStat, defenseStat, power);
 
         // 屬性相剋倍率
-        if (attackerTypes && defenderTypes && attackerTypes.length > 0) {
-            const result = getBestTypeEffectiveness(attackerTypes, defenderTypes);
+        const damageTypes = skillPower > 0 && skillType ? [skillType] : attackerTypes;
+        if (damageTypes && defenderTypes && damageTypes.length > 0) {
+            const result = getBestTypeEffectiveness(damageTypes, defenderTypes);
             damage = Math.floor(damage * result.multiplier);
         }
 
@@ -1963,28 +1974,11 @@ class GameCore {
             const playerTypes = this.getPokemonTypes(pokemonId);
             const level = cachedTeamLevels[i];
 
-            // 獲取最優技能威力
-            let skillPower = 0;
-            const skillInfo = this.getSkillForPokemon(pokemonId);
-            if (skillInfo && skillInfo.skills.length > 0) {
-                let bestSkill = skillInfo.skills[0];
-                if (skillInfo.skills.length > 1) {
-                    let bestMult = 0;
-                    for (const sk of skillInfo.skills) {
-                        const eff = getBestTypeEffectiveness([sk.type], wildTypes);
-                        if (eff.multiplier > bestMult || bestMult === 0) {
-                            bestMult = eff.multiplier;
-                            bestSkill = sk;
-                        }
-                    }
-                }
-                skillPower = bestSkill.power;
-            }
-
-            const power = skillPower > 0 ? skillPower : 50;
+            const bestAttack = this._getBestSkillForEnemy(pokemonId, wildTypes, level, stats.attack, enemyStats.defense);
+            const power = bestAttack.power > 0 ? bestAttack.power : 50;
 
             const baseDmg = Math.floor(((2 * level / 5 + 2) * power * stats.attack / enemyStats.defense) / 50) + 2;
-            const typeResult = getBestTypeEffectiveness(playerTypes, wildTypes);
+            const typeResult = getBestTypeEffectiveness(bestAttack.type ? [bestAttack.type] : playerTypes, wildTypes);
             const typeMult = typeResult.multiplier;
             const estimatedDmg = Math.floor(baseDmg * typeMult);
             const minDmg = Math.floor(estimatedDmg * 0.85);
@@ -2036,7 +2030,7 @@ class GameCore {
     // ===================== 傷害計算（官方公式簡化版） =====================
     // Damage = ((2*Level/5+2) * Power * A/D / 50 + 2) * Type * CriticalHit * Random
     // 招式威力固定50，無STAB
-    calculateDamage(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer = false, skillPower = 0) {
+    calculateDamage(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer = false, skillPower = 0, skillType = '') {
         const power = skillPower > 0 ? skillPower : 50; // 有技能時使用技能威力，否則固定50
         const towerNoTypeAdvantage = this._towerMode && isPlayer &&
             this.gameState.tower.currentFloor >= TOWER_NO_TYPE_ADVANTAGE_FLOOR;
@@ -2047,9 +2041,10 @@ class GameCore {
         // 屬性相剋倍率（雙屬性攻擊方取最優屬性，倍率×0.75）
         let typeEffectiveness = 1;
         let effectivenessText = '';
-        if (attackerTypes && defenderTypes && attackerTypes.length > 0) {
+        const damageTypes = skillPower > 0 && skillType ? [skillType] : attackerTypes;
+        if (damageTypes && defenderTypes && damageTypes.length > 0) {
             if (!towerNoTypeAdvantage) {
-                const result = getBestTypeEffectiveness(attackerTypes, defenderTypes);
+                const result = getBestTypeEffectiveness(damageTypes, defenderTypes);
                 typeEffectiveness = result.multiplier;
             }
             damage = Math.floor(damage * typeEffectiveness);
@@ -2325,7 +2320,7 @@ class GameCore {
             const wildTypes = this.getPokemonTypes(this.currentBattle.wild.id, this.currentBattle.wild);
 
             // 獲取最優技能
-            const bestSkill = this._getBestSkillForEnemy(activePokemonId, wildTypes);
+            const bestSkill = this._getBestSkillForEnemy(activePokemonId, wildTypes, activePokemon.level, this.currentBattle.playerStats.attack, this.currentBattle.wildStats.defense);
             const skillPower = bestSkill.power;
             const skillName = bestSkill.name;
             const skillType = bestSkill.type;
@@ -2337,7 +2332,8 @@ class GameCore {
                 playerTypes,
                 wildTypes,
                 true, // isPlayer
-                skillPower
+                skillPower,
+                skillType
             );
             this.currentBattle.wildCurrentHp -= result.damage;
 
@@ -2917,6 +2913,7 @@ class GameCore {
                     simulated.caughtPokemon[id].level = targetLevel;
                     simulated.caughtPokemon[id].skillLevel = MAX_SKILL_LEVEL;
                 }
+                simulated.skillLevelsByType = Object.fromEntries(Object.keys(SKILL_DATA).map(type => [type, MAX_SKILL_LEVEL]));
                 const candidates = new Set(owned);
                 this._recommendVirtualIds = new Set();
                 for (const sourceId of owned) {
@@ -2986,10 +2983,10 @@ class GameCore {
         if (!candidates.length) return null;
         const estimate = (id, stats, profile) => {
             const pokemon = this.createPokemon(id, true);
-            const skill = this._getBestSkillForEnemy(id, profile.types);
+            const skill = this._getBestSkillForEnemy(id, profile.types, pokemon.level, stats.attack, profile.stats.defense);
             const power = skill.power > 0 ? skill.power : 50;
             const damage = Math.floor(((2 * pokemon.level / 5 + 2) * power * stats.attack / profile.stats.defense) / 50) + 2;
-            const effectiveness = getBestTypeEffectiveness(refine && skill.type ? [skill.type] : this.getPokemonTypes(id), profile.types).multiplier;
+            const effectiveness = getBestTypeEffectiveness(skill.type ? [skill.type] : this.getPokemonTypes(id), profile.types).multiplier;
             const estimatedDamage = Math.floor(damage * effectiveness);
             const minDamage = Math.max(1, Math.floor(estimatedDamage * 0.85));
             const interval = this.getAttackInterval(stats.speed);
@@ -3636,6 +3633,26 @@ _isRouteCompleteByCondition(routeId) {
         return true;
     }
 
+    _migrateSharedSkillLevels() {
+        const state = this.gameState;
+        if (!state) return false;
+        if (Number(state.skillSystemVersion) >= 1 && state.skillLevelsByType && typeof state.skillLevelsByType === 'object') {
+            return false;
+        }
+
+        const skillLevelsByType = {};
+        for (const [id, stored] of Object.entries(state.caughtPokemon || {})) {
+            const skillLevel = Math.max(0, Math.min(MAX_SKILL_LEVEL, Math.floor(Number(stored?.skillLevel) || 0)));
+            if (skillLevel <= 0) continue;
+            for (const type of this.getPokemonTypes(Number(id))) {
+                skillLevelsByType[type] = Math.max(skillLevelsByType[type] || 0, skillLevel);
+            }
+        }
+        state.skillLevelsByType = skillLevelsByType;
+        state.skillSystemVersion = 1;
+        return true;
+    }
+
     load() {
         try {
             const raw = localStorage.getItem('pokemon_idle_save');
@@ -3658,6 +3675,7 @@ _isRouteCompleteByCondition(routeId) {
 
             const parsed = JSON.parse(data);
             let berryMigrationApplied = false;
+            let skillMigrationApplied = false;
             // 驗證資料完整性
             if (!parsed || !parsed.team || !Array.isArray(parsed.team) || parsed.team.length === 0) {
                 console.warn('存檔資料不完整，將重新開始');
@@ -3769,6 +3787,7 @@ _isRouteCompleteByCondition(routeId) {
             delete parsed.pendingSkillRouteCheck;
             delete parsed.skillRecoveryRoute;
             this.gameState = parsed;
+            skillMigrationApplied = this._migrateSharedSkillLevels();
             this._updateZygardeFormUnlocks();
             this._updatePokemonFormUnlocks();
             this.repairHuntingLocation();
@@ -3778,7 +3797,7 @@ _isRouteCompleteByCondition(routeId) {
             // 遷移修復：舊版 generateUID 批次購買時產生重複uid
             this._migrateFixGemUids();
             this._reconcileCompletedBadges();
-            if (berryMigrationApplied) this.save();
+            if (berryMigrationApplied || skillMigrationApplied) this.save();
             return true;
         } catch (e) {
             console.error('載入失敗:', e);
@@ -3883,7 +3902,9 @@ _isRouteCompleteByCondition(routeId) {
             }
 
             this._migrateBerrySystem(data);
+            data.caughtPokemon ||= {};
             this.gameState = data;
+            this._migrateSharedSkillLevels();
             this.recordHighestVisitedRoute();
             this._towerMode = false;
             this._towerFaintedIds = null;
@@ -4551,29 +4572,12 @@ _isRouteCompleteByCondition(routeId) {
 
             const playerTypes = this.getPokemonTypes(pokemonId);
 
-            // 獲取最優技能威力（選對敵人剋制最強的技能）
-            let skillPower = 0;
-            const skillInfo = this.getSkillForPokemon(pokemonId);
-            if (skillInfo && skillInfo.skills.length > 0) {
-                let bestSkill = skillInfo.skills[0];
-                if (skillInfo.skills.length > 1) {
-                    let bestMult = 0;
-                    for (const sk of skillInfo.skills) {
-                        const eff = getBestTypeEffectiveness([sk.type], wildTypes);
-                        if (eff.multiplier > bestMult || bestMult === 0) {
-                            bestMult = eff.multiplier;
-                            bestSkill = sk;
-                        }
-                    }
-                }
-                skillPower = bestSkill.power;
-            }
-
-            const power = skillPower > 0 ? skillPower : 50;
+            const bestAttack = this._getBestSkillForEnemy(pokemonId, wildTypes, pokemon.level, stats.attack, enemyStats.defense);
+            const power = bestAttack.power > 0 ? bestAttack.power : 50;
 
             // 使用與 calculateDamage 一致的公式預估單次傷害
             const baseDmg = Math.floor(((2 * pokemon.level / 5 + 2) * power * stats.attack / enemyStats.defense) / 50) + 2;
-            const typeResult = getBestTypeEffectiveness(playerTypes, wildTypes);
+            const typeResult = getBestTypeEffectiveness(bestAttack.type ? [bestAttack.type] : playerTypes, wildTypes);
             const typeMult = typeResult.multiplier;
             const estimatedDmg = Math.floor(baseDmg * typeMult);
             // 考慮傷害波動最低值(85%)來判定一擊必殺，避免因波動導致需要兩次攻擊
@@ -4618,34 +4622,55 @@ _isRouteCompleteByCondition(routeId) {
         return candidates[0].index;
     }
 
-    // 獲取寶可夢當前技能資訊（根據屬性和技能等級）
-    // 返回: { skills: [{ type, name, power }], skillLevel } 或 null
-    getSkillForPokemon(pokemonId) {
+    // 將該寶可夢升級的技能等級共享至升級當時的屬性。
+    _syncSharedSkillLevelForPokemon(pokemonId, skillGain = 0, selectedType = null) {
         const storedData = this.gameState.caughtPokemon[pokemonId];
-        if (!storedData || !storedData.skillLevel || storedData.skillLevel <= 0) return null;
+        const skillLevel = Math.max(0, Math.min(MAX_SKILL_LEVEL, Math.floor(Number(storedData?.skillLevel) || 0)));
+        this.gameState.skillLevelsByType ||= {};
+        for (const type of this.getPokemonTypes(pokemonId)) {
+            if (skillGain > 0 && selectedType && type !== selectedType) continue;
+            const currentTypeLevel = Math.max(0, Math.min(MAX_SKILL_LEVEL, Math.floor(Number(this.gameState.skillLevelsByType[type]) || 0)));
+            this.gameState.skillLevelsByType[type] = skillGain > 0
+                ? Math.min(MAX_SKILL_LEVEL, currentTypeLevel + skillGain)
+                : Math.max(currentTypeLevel, skillLevel);
+        }
+        this.gameState.skillSystemVersion = 1;
+    }
+
+    // 獲取寶可夢可使用的共享屬性技能；親自升級者不受Lv.500使用門檻限制。
+    // 返回: { skills: [{ type, name, power }], skillLevel } 或 null
+    getSkillForPokemon(pokemonId, level = null) {
+        const storedData = this.gameState.caughtPokemon[pokemonId];
+        if (!storedData) return null;
+        const pokemonLevel = level ?? storedData.level ?? 0;
+        const hasPersonalUnlock = (Number(storedData.skillLevel) || 0) > 0;
+        if (!hasPersonalUnlock && pokemonLevel < SKILL_USE_LEVEL_REQUIREMENT) return null;
 
         const baseData = POKEMON_DATA[pokemonId];
         if (!baseData) return null;
 
-        const skillLevel = storedData.skillLevel;
+        const sharedLevels = this.gameState.skillLevelsByType || {};
         const types = this.getPokemonTypes(pokemonId);
         const skills = [];
+        let skillLevel = 0;
 
         for (const type of types) {
+            const typeSkillLevel = Math.max(0, Math.min(MAX_SKILL_LEVEL, Math.floor(Number(sharedLevels[type]) || 0)));
+            skillLevel = Math.max(skillLevel, typeSkillLevel);
             const typeSkills = SKILL_DATA[type];
             if (typeSkills) {
-                const skill = typeSkills.find(s => s.level === skillLevel);
+                const skill = typeSkills.find(s => s.level === typeSkillLevel);
                 if (skill) {
                     skills.push({ type, name: skill.name, power: skill.power });
                 }
             }
         }
 
-        return { skills, skillLevel };
+        return skills.length ? { skills, skillLevel } : null;
     }
 
     // 每滿 1000 級增加 1 級技能；等級與經驗重置。
-    upgradeSkill(pokemonId) {
+    upgradeSkill(pokemonId, selectedType = null) {
         if (this._towerMode) return { success: false, message: '對戰塔挑戰期間無法升級技能' };
         if (!this.isSkillUnlocked()) return { success: false, message: '技能系統尚未解鎖' };
 
@@ -4659,12 +4684,19 @@ _isRouteCompleteByCondition(routeId) {
         const baseData = POKEMON_DATA[pokemonId];
         if (!baseData) return { success: false, message: '無效的寶可夢' };
 
+        const availableTypes = this.getPokemonTypes(pokemonId);
+        const targetType = selectedType || (availableTypes.length === 1 ? availableTypes[0] : null);
+        if (!targetType || !availableTypes.includes(targetType)) {
+            return { success: false, message: '請選擇要升級的屬性技能' };
+        }
+
         const oldLevel = storedData.level;
 
         const skillGain = Math.min(MAX_SKILL_LEVEL - currentSkillLevel, Math.floor(oldLevel / SKILL_LEVEL_REQUIREMENT));
         storedData.level = 1;
         storedData.exp = 0;
         storedData.skillLevel = currentSkillLevel + skillGain;
+        this._syncSharedSkillLevelForPokemon(pokemonId, skillGain, targetType);
 
         // 檢查進化（因為等級變化可能觸發）
         this.checkEvolution(pokemonId);
@@ -4692,15 +4724,17 @@ _isRouteCompleteByCondition(routeId) {
             newLevel: storedData.level,
             oldLevel: oldLevel,
             skillGain,
+            upgradedType: targetType,
         };
     }
 
     // 一鍵升級所有可升級技能的寶可夢
-    upgradeAllSkills() {
+    upgradeAllSkills(typeSelections = {}) {
         if (this._towerMode) return { success: false, message: '對戰塔挑戰期間無法升級技能' };
         if (!this.isSkillUnlocked()) return { success: false, message: '技能系統尚未解鎖' };
 
         const results = [];
+        const skippedIds = [];
         let resetActiveMember = false;
         for (const pokemonId in this.gameState.caughtPokemon) {
             const storedData = this.gameState.caughtPokemon[pokemonId];
@@ -4713,6 +4747,13 @@ _isRouteCompleteByCondition(routeId) {
             const baseData = POKEMON_DATA[pokemonId];
             if (!baseData) continue;
 
+            const availableTypes = this.getPokemonTypes(Number(pokemonId));
+            const targetType = availableTypes.length === 1 ? availableTypes[0] : typeSelections[pokemonId];
+            if (!targetType || !availableTypes.includes(targetType)) {
+                skippedIds.push(Number(pokemonId));
+                continue;
+            }
+
             const oldLevel = storedData.level;
             if (String(this.gameState.team[this.gameState.activePokemonIndex]) === String(pokemonId)) resetActiveMember = true;
 
@@ -4720,6 +4761,7 @@ _isRouteCompleteByCondition(routeId) {
             storedData.level = 1;
             storedData.exp = 0;
             storedData.skillLevel = currentSkillLevel + skillGain;
+            this._syncSharedSkillLevelForPokemon(Number(pokemonId), skillGain, targetType);
 
             // 檢查進化
             this.checkEvolution(pokemonId);
@@ -4731,11 +4773,14 @@ _isRouteCompleteByCondition(routeId) {
                 newLevel: storedData.level,
                 oldLevel: oldLevel,
                 skillGain,
+                upgradedType: targetType,
             });
         }
 
         if (results.length === 0) {
-            return { success: false, message: '沒有可升級技能的寶可夢（需要等級≥1000且技能未滿級）' };
+            return { success: false, message: skippedIds.length
+                ? '雙屬性寶可夢尚未選擇升級屬性'
+                : '沒有可升級技能的寶可夢（需要等級≥1000且技能未滿級）' };
         }
 
         if (this.currentBattle) {
@@ -4752,7 +4797,7 @@ _isRouteCompleteByCondition(routeId) {
         }
 
         this.save();
-        return { success: true, count: results.length, results };
+        return { success: true, count: results.length, results, skippedIds };
     }
 
     // ===================== 天賦系統 =====================
@@ -4875,7 +4920,7 @@ _isRouteCompleteByCondition(routeId) {
         return this.gameState.talents?.gemAttrChoice || null;
     }
 
-    // 獲取技能等級總和（用於第9個天賦計算）
+    // 獲取個人累積升級次數總和（用於第9個天賦；共享解鎖等級不重複計算）
     getSkillLevelSum() {
         let sum = 0;
         for (const id in this.gameState.caughtPokemon) {

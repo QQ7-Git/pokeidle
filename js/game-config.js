@@ -139,10 +139,11 @@ const POKEDEX_STAT_MILESTONE_BONUS = 5;   // 每達成一個捕獲里程碑，�
 
 // ===================== 技能系統配置 =====================
 const SKILL_LEVEL_REQUIREMENT = 1000; // 升級技能所需最低等級
+const SKILL_USE_LEVEL_REQUIREMENT = 500; // 未親自升級技能者使用共享技能所需等級
 const MAX_SKILL_LEVEL = 8;            // 技能最大等級
 
 // 每個屬性8個等級的技能，嚴格按傷害遞增排列（招式名和威力參考官方原版資料）
-// 技能等級>0時，戰鬥中使用對應技能替代固定威力50
+// 屬性共享技能達解鎖等級且符合使用門檻時，戰鬥可選用對應招式
 const SKILL_DATA = {
     normal: [
         { level: 1,  name: '高速星星',   power: 60  },

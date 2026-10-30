@@ -785,7 +785,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .skill-bulk-row:last-child { border-bottom: 0; }
 .skill-bulk-row strong { overflow-wrap: anywhere; color: var(--text-primary); }
 .skill-bulk-row span { color: var(--text-secondary); }
-.skill-bulk-row span:last-child { grid-column: 2 / -1; color: var(--accent-light); }
+.skill-bulk-row > span:last-child { grid-column: 2 / -1; color: var(--accent-light); }
 
 /* 霓虹戰術：冷色掃描線、銳角卡片與桌面側邊導覽。 */
 [data-theme="neon"] #header { border-bottom-color: var(--accent); }

@@ -2540,6 +2540,16 @@ body {
     margin-bottom: 16px;
 }
 
+.skill-upgrade-modal { max-width: 520px; text-align: left; }
+.skill-upgrade-modal h3 { text-align: center; }
+.skill-upgrade-options { display: grid; gap: 8px; margin: 12px 0; }
+.skill-upgrade-option { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); text-align: left; cursor: pointer; }
+.skill-upgrade-option[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.skill-upgrade-option-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-weight: 700; }
+.skill-upgrade-option-moves { display: block; margin-top: 5px; color: var(--text-secondary); font-size: 12px; }
+.skill-upgrade-note { margin-top: 12px; }
+.skill-bulk-target { display: block; width: 100%; max-width: 100%; margin-top: 5px; padding: 5px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); font-size: 12px; }
+
 .modal-buttons {
     display: flex;
     gap: 8px;
