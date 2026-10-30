@@ -116,10 +116,13 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .pokemon-battle-info { background: rgba(10, 11, 14, .84); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; }
 #battle-scene .pokemon-battle-info { position: relative; height: 106px; padding-bottom: 30px; transform: translateY(12px); }
 #battle-scene .pokemon-battle-info .hp-bar-wrapper { position: relative; }
-.battle-skill-label { position: absolute; top: calc(100% + 2px); left: 0; right: 0; display: flex; gap: 4px; height: 17px; line-height: 17px; overflow: hidden; pointer-events: none; }
-.battle-skill-label .type-badge { min-width: 0; max-width: 100%; padding: 0 6px; font-size: 11px; line-height: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.battle-skill-label { box-sizing: border-box; position: absolute; top: calc(100% + 2px); left: 0; right: 0; display: flex; flex-wrap: wrap; gap: 4px; height: auto; min-height: 17px; line-height: 17px; overflow: visible; pointer-events: none; }
+.battle-skill-label .type-badge { box-sizing: border-box; min-width: 0; max-width: 100%; padding: 0 6px; font-size: 11px; line-height: 17px; white-space: normal; overflow-wrap: anywhere; }
+.battle-skill-label .battle-signature-row { box-sizing: border-box; display: flex; flex: 0 0 100%; flex-wrap: wrap; gap: 4px; min-width: 0; max-width: 100%; }
 .battle-skill-label .battle-skill-unused { background: #596168; color: #d5d9dc; }
 .battle-skill-label .battle-skill-basic { background: #46535a; color: #fff; }
+.battle-skill-label .battle-skill-signature-locked { border: 1px dashed #c49aff; background: #30253f; color: #e2caff; opacity: .8; }
+#battle-scene #player-info .hp-bar-wrapper:has(.battle-signature-row) { margin-bottom: 20px; }
 #battle-scene .pokemon-battle-info .atk-bar-container { transform: translateY(20px); }
 @media (min-width: 900px) { #battle-scene .pokemon-battle-info { height: 112px; padding-bottom: 32px; } }
 @media (max-width: 479px) { #battle-scene .pokemon-battle-info { height: 92px; padding-bottom: 28px; } }
@@ -174,16 +177,17 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #battle-scene .pokemon-battle-info .hp-bar-wrapper { grid-row: 3; }
 #battle-scene .pokemon-battle-info .atk-bar-container { grid-row: 4; }
 #battle-scene .pokemon-battle-info .matchup-indicator { grid-row: 5; }
-#battle-scene #player-info:has(#player-terapagos-energy) .terapagos-battle-energy {
+#battle-scene #player-info:has(#player-terapagos-energy, #player-signature-energy, #player-keldeo-duration, #player-meloetta-duration) .terapagos-battle-energy {
     grid-column: 1 / -1;
     grid-row: 3;
     width: 100%;
     min-width: 0;
     margin: 0;
 }
-#battle-scene #player-info:has(#player-terapagos-energy) .hp-bar-wrapper { grid-row: 4; }
-#battle-scene #player-info:has(#player-terapagos-energy) .atk-bar-container { grid-row: 5; }
-#battle-scene #player-info:has(#player-terapagos-energy) { min-height: 128px; }
+#battle-scene #player-info:has(#player-terapagos-energy, #player-signature-energy, #player-keldeo-duration, #player-meloetta-duration) .hp-bar-wrapper { grid-row: 4; }
+#battle-scene #player-info:has(#player-terapagos-energy, #player-signature-energy, #player-keldeo-duration, #player-meloetta-duration) .atk-bar-container { grid-row: 5; }
+#battle-scene #player-info:has(#player-terapagos-energy, #player-signature-energy, #player-keldeo-duration, #player-meloetta-duration) { min-height: 128px; }
+#battle-scene #player-info:has(#player-signature-energy, #player-keldeo-duration, #player-meloetta-duration) { align-content: start; padding-top: 16px; }
 #battle-scene .pokemon-battle-info .hp-text { white-space: nowrap; }
 #battle-log, #info-panel {
     background: var(--bg-secondary); border: 1px solid var(--border);
@@ -412,6 +416,21 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #battle-log .section-caption > span:first-child::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px rgba(77,243,220,.55); vertical-align: middle; }
 .log-messages { padding-right: 5px; scrollbar-color: #31575a transparent; scrollbar-width: thin; }
 .log-messages .log-entry { position: relative; padding: 7px 9px 7px 13px; margin-bottom: 4px; border: 1px solid rgba(77,243,220,.07); border-radius: 4px; background: rgba(5,11,13,.55); color: #c7d8d8; line-height: 1.55; overflow-wrap: anywhere; }
+.log-messages .log-signature-attack { border-color: rgba(185, 132, 255, .62); background: linear-gradient(110deg, rgba(70, 42, 112, .46), rgba(34, 68, 83, .48) 55%, rgba(104, 53, 91, .4)); box-shadow: inset 3px 0 0 #c79aff, 0 0 12px rgba(166, 112, 255, .16); }
+.log-messages .log-signature-attack::before { width: 6px; height: 6px; top: 12px; background: #e1a6ff; box-shadow: 0 0 8px #ca7cff; }
+.log-messages .log-signature-attack .log-message::before { content: '✦ 專屬招式 ✦'; display: inline-block; margin: 0 5px 2px 0; padding: 1px 5px; border: 1px solid rgba(255, 224, 122, .75); border-radius: 4px; background: linear-gradient(100deg, #a66eff, #ed77c6 58%, #ffcf68); color: #181126; -webkit-text-fill-color: #181126; font-size: 9px; font-weight: 900; letter-spacing: .3px; vertical-align: 1px; filter: none; }
+.signature-vfx { --vfx-light: #fff0a6; --vfx-glow: #ffcf4a; position: absolute; z-index: 20; inset: 0; overflow: hidden; pointer-events: none; isolation: isolate; animation: signature-scene-flash 1.15s ease-out both; }
+.signature-vfx::before { content: ''; position: absolute; inset: 0; opacity: 0; }
+.signature-vfx__title { position: absolute; z-index: 1; left: 50%; top: 50%; display: grid; justify-items: center; gap: 7px; width: max-content; max-width: 96%; color: white; text-align: center; transform: translate(-50%,-50%); animation: signature-title-slam 1.18s cubic-bezier(.12,.8,.2,1) both; }
+.signature-vfx__title strong { max-width: 96vw; color: #fff; font: 1000 clamp(30px, 8vw, 76px)/1.05 system-ui,sans-serif; letter-spacing: .06em; overflow-wrap: anywhere; -webkit-text-stroke: 2px #39104f; paint-order: stroke fill; text-shadow: 0 3px 0 #54206c, 0 0 8px #fff, 0 0 22px var(--vfx-glow), 0 0 48px var(--vfx-glow); }
+.signature-vfx__title small { padding: 5px 12px; border: 2px solid #ffe68a; border-radius: 999px; background: linear-gradient(100deg,#8b35ff,#f044c8 58%,#ffad39); color: #fff9cf; font: 1000 clamp(11px,2.4vw,17px)/1 system-ui,sans-serif; letter-spacing: .22em; text-shadow: 0 0 8px #ffda69; box-shadow: 0 0 18px #f044c8, inset 0 0 10px rgba(255,255,255,.55); }
+.signature-vfx--arcade::before { opacity: 1; background: repeating-linear-gradient(0deg,rgba(255,255,255,.08) 0 2px,transparent 2px 7px),linear-gradient(135deg,rgba(23,2,45,.86),rgba(76,0,106,.45) 50%,rgba(255,27,151,.28)); animation: signature-arcade-screen 1.15s steps(2,end) both; }
+.signature-vfx--arcade .signature-vfx__title { padding: 14px 24px; border: 3px solid #fff36c; background: linear-gradient(105deg,#ff2bba,#822bff 52%,#13cfff); clip-path: polygon(4% 0,100% 0,96% 100%,0 100%); box-shadow: 0 0 30px #fb39f0; }
+.signature-vfx--arcade .signature-vfx__title strong { font-style: italic; text-transform: uppercase; }
+@keyframes signature-scene-flash { 0%,100% { filter: none; } 8% { filter: brightness(3) saturate(1.6); } 18% { filter: brightness(.35) saturate(1.5); } 35% { filter: brightness(1.5); } }
+@keyframes signature-title-slam { 0% { opacity: 0; transform: translate(-50%,-50%) scale(2.5) rotate(8deg); filter: blur(12px); } 17% { opacity: 1; transform: translate(-50%,-50%) scale(.82) rotate(-2deg); filter: blur(0); } 25%,77% { opacity: 1; transform: translate(-50%,-50%) scale(1); } 100% { opacity: 0; transform: translate(-50%,-74%) scale(.72) rotate(-5deg); filter: blur(4px); } }
+@keyframes signature-arcade-screen { 0%,100% { opacity: .25; } 12%,34% { opacity: 1; } 22%,48% { opacity: .35; } 55% { opacity: .85; } }
+@media (prefers-reduced-motion: reduce) { .signature-vfx, .signature-vfx::before, .signature-vfx__title { animation-duration: .5s; } }
 .log-messages .log-entry::before { content: ''; position: absolute; top: 12px; left: 5px; width: 3px; height: 3px; border-radius: 50%; background: #6c9695; }
 .log-messages .log-time { display: inline-block; margin-right: 7px; color: #7fa5a3; font-family: Consolas, monospace; font-size: 10px; }
 .log-messages .log-attack { color: #e4eeee; }

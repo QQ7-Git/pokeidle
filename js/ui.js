@@ -531,6 +531,41 @@ class GameUI {
                 this.updateTerapagosBattleEnergy();
                 if (data.wins >= data.maximum) this.showToast('太樂巴戈斯的星晶能量已充滿！下一次出戰時將自動星晶化。');
                 break;
+            case 'signatureEnergyChanged':
+                this.renderTeam();
+                this.updateSignatureBattleEnergy();
+                this._updateBattleSkills();
+                if (data.wins >= data.maximum) this.showToast(`${POKEMON_DATA[data.pokemonId]?.name || '專屬招式'}能量已充滿！`);
+                break;
+            case 'temporarySignatureFormChanged': {
+                this.renderTeam();
+                this._updateBattleSkills();
+                const pokemonId = Number(data.pokemonId);
+                if (this.game.currentBattle && this.game.gameState.team[this.game.gameState.activePokemonIndex] === pokemonId) {
+                    const pokemon = this.game.createPokemon(pokemonId, true);
+                    const playerTypes = this.game.getPokemonTypes(pokemonId, pokemon);
+                    const wildTypes = this.game.getPokemonTypes(this.game.currentBattle.wild.id, this.game.currentBattle.wild);
+                    const shiny = !!this.game.gameState.pokedexDisplay?.[pokemonId] && !!this.game.gameState.shinyDex?.[pokemonId];
+                    const sprite = document.getElementById('player-sprite');
+                    document.getElementById('player-name').textContent = `${shiny ? '✨ ' : ''}${pokemon.name}`;
+                    sprite.dataset.pokemonForm = pokemon.form || '';
+                    sprite.innerHTML = `<img src="${getPokemonFormSpriteUrl(pokemonId, pokemon.form, shiny)}" alt="${pokemon.name}" onerror="fallbackPokemonSprite(this, ${pokemonId}, ${shiny}, '⚡')">${shiny ? this._shinyEntryEffectMarkup() : ''}`;
+                    const playerTypesElement = document.getElementById('player-types');
+                    const matchup = getBestTypeEffectiveness(playerTypes, wildTypes, this.game._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0).multiplier;
+                    const matchupIcon = matchup === 0
+                        ? '<span class="matchup-icon matchup-down" title="我方攻擊對敵方無效">🚫</span>'
+                        : matchup > 1
+                            ? '<span class="matchup-icon matchup-up" title="剋制敵方">⚔️</span>'
+                            : matchup < 1 ? '<span class="matchup-icon matchup-down" title="被敵方抵抗">🛡️</span>' : '';
+                    playerTypesElement.innerHTML = playerTypes.map(type => `<span class="type-badge ${type}">${TYPE_NAMES[type]}</span>`).join(' ') + matchupIcon;
+                    const hpPercent = Math.max(0, this.game.currentBattle.playerCurrentHp / this.game.currentBattle.playerMaxHp * 100);
+                    document.getElementById('player-hp-bar').style.width = `${hpPercent}%`;
+                    document.getElementById('player-hp-text').textContent = `${this.game.currentBattle.playerCurrentHp}/${this.game.currentBattle.playerMaxHp}`;
+                    this._sizeBattleSprites();
+                }
+                this.updateBattleEnergyDisplay(this.game.gameState.team[this.game.gameState.activePokemonIndex]);
+                break;
+            }
             case 'routeFailureRetreat':
                 this.updateRoadRetreatStatus(`戰鬥失敗過多，已退回 ${data.regionName} · ${data.routeName}；自動切圖已關閉，需自行開啟`);
                 const autoRouteCheckbox = document.getElementById('setting-auto-route');
@@ -668,7 +703,7 @@ class GameUI {
                 break;
             case 'offlineEnd':
                 this._hideOfflineOverlay(data.battles, data.totalMs, data.report);
-                if (this.game.gameState.team.includes(1024)) this.renderTeam();
+                this.renderTeam();
                 break;
             case 'autoSwitched': {
                 const pokemonId = this.game.gameState.team[data.newIndex];
@@ -693,6 +728,50 @@ class GameUI {
     getTerapagosEnergyHtml(className = 'terapagos-energy', id = '') {
         const wins = Math.max(0, Math.min(5, Number(this.game.gameState.terapagosStellarWins) || 0));
         return `<div${id ? ` id="${id}"` : ''} class="${className}" role="progressbar" aria-label="星晶能量" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${wins}"><span>星晶能量</span><div class="terapagos-energy-track"><i style="width:${wins * 20}%"></i></div><strong>${wins}/5</strong></div>`;
+    }
+
+    getSignatureEnergyHtml(pokemonId, className = 'terapagos-energy signature-energy', id = '') {
+        const wins = this.game.getSignatureMoveWins(pokemonId);
+        return `<div${id ? ` id="${id}"` : ''} class="${className}" role="progressbar" aria-label="專屬招式能量" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${wins}"><span>專屬能量</span><div class="terapagos-energy-track"><i style="width:${wins * 20}%"></i></div><strong>${wins}/5</strong></div>`;
+    }
+
+    getKeldeoDurationHtml(className = 'terapagos-energy keldeo-duration-energy', id = '') {
+        return this.getTemporarySignatureFormDurationHtml(647, className, id);
+    }
+
+    getTemporarySignatureFormDurationHtml(pokemonId, className = 'terapagos-energy temporary-signature-duration', id = '') {
+        const transition = this.game.getSignatureFormTransition(pokemonId);
+        if (!transition) return '';
+        const remaining = Math.max(0, Math.min(5, Number(this.game.gameState[transition.remainingKey]) || 0));
+        return `<div${id ? ` id="${id}"` : ''} class="${className}" role="progressbar" aria-label="${transition.displayName}型態剩餘場數" aria-valuemin="0" aria-valuemax="5" aria-valuenow="${remaining}"><span>${transition.displayName}剩餘</span><div class="terapagos-energy-track"><i style="width:${remaining * 20}%"></i></div><strong>${remaining}/5</strong></div>`;
+    }
+
+    updateBattleEnergyDisplay(pokemonId = this.game.gameState.team[this.game.gameState.activePokemonIndex]) {
+        const playerTypesElement = document.getElementById('player-types');
+        if (!playerTypesElement) return;
+        document.getElementById('player-terapagos-energy')?.remove();
+        document.getElementById('player-signature-energy')?.remove();
+        document.getElementById('player-keldeo-duration')?.remove();
+        document.getElementById('player-meloetta-duration')?.remove();
+        const transition = this.game.getSignatureFormTransition(pokemonId);
+        if (transition && this.game.isSignatureFormTransitionActive(pokemonId)) {
+            const id = Number(pokemonId) === 647 ? 'player-keldeo-duration' : 'player-meloetta-duration';
+            playerTypesElement.insertAdjacentHTML('afterend', this.getTemporarySignatureFormDurationHtml(pokemonId, 'terapagos-energy terapagos-battle-energy temporary-signature-duration', id));
+        } else if (Number(pokemonId) === 1024) {
+            playerTypesElement.insertAdjacentHTML('afterend', this.getTerapagosEnergyHtml('terapagos-energy terapagos-battle-energy', 'player-terapagos-energy'));
+        } else if (this.game.getSignatureMoves(pokemonId).length) {
+            playerTypesElement.insertAdjacentHTML('afterend', this.getSignatureEnergyHtml(pokemonId, 'terapagos-energy terapagos-battle-energy signature-energy', 'player-signature-energy'));
+        }
+    }
+
+    updateSignatureBattleEnergy() {
+        const pokemonId = this.game.gameState.team[this.game.gameState.activePokemonIndex];
+        const energy = document.getElementById('player-signature-energy');
+        if (!energy || !this.game.getSignatureMoves(pokemonId).length) return;
+        const wins = this.game.getSignatureMoveWins(pokemonId);
+        energy.setAttribute('aria-valuenow', String(wins));
+        energy.querySelector('.terapagos-energy-track i').style.width = `${wins * 20}%`;
+        energy.querySelector('strong').textContent = `${wins}/5`;
     }
 
     updateTerapagosBattleEnergy() {
@@ -729,13 +808,19 @@ class GameUI {
         document.getElementById('enemy-hp-bar').className = `hp-bar${enemyHpPercent <= 20 ? ' hp-danger' : enemyHpPercent <= 50 ? ' hp-warning' : ''}`;
         document.getElementById('enemy-hp-text').textContent = `${battle.wildCurrentHp}/${battle.wildMaxHp}`;
 
-        // 計算雙向屬性相剋（支援雙屬性攻擊方取最優）
-        const playerEffectiveness = getBestTypeEffectiveness(playerTypes, wildTypes).multiplier;
-        const enemyEffectiveness = getBestTypeEffectiveness(wildTypes, playerTypes).multiplier;
+        // 計算雙向屬性相剋（支援雙屬性攻擊方取最優）；塔樓維持舊免疫倍率。
+        const towerIgnoresPlayerType = this.game._towerMode &&
+            this.game.gameState.tower.currentFloor >= TOWER_NO_TYPE_ADVANTAGE_FLOOR;
+        const playerEffectiveness = towerIgnoresPlayerType
+            ? 1
+            : getBestTypeEffectiveness(playerTypes, wildTypes, this.game._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0).multiplier;
+        const enemyEffectiveness = getBestTypeEffectiveness(wildTypes, playerTypes, this.game._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0).multiplier;
         
         // 敵方屬性 + 對我方剋制圖示
         let enemyTypeIcon = '';
-        if (enemyEffectiveness > 1) {
+        if (enemyEffectiveness === 0) {
+            enemyTypeIcon = `<span class="matchup-icon matchup-down" title="我方免疫敵方攻擊">🚫</span>`;
+        } else if (enemyEffectiveness > 1) {
             enemyTypeIcon = `<span class="matchup-icon matchup-up" title="剋制我方">🔥</span>`;
         } else if (enemyEffectiveness < 1) {
             enemyTypeIcon = `<span class="matchup-icon matchup-down" title="被我方抵抗">🛡️</span>`;
@@ -766,7 +851,7 @@ class GameUI {
         const playerHasShiny = this.game.gameState.shinyDex[playerPokemonId];
         const playerShinyPrefix = playerHasShiny ? '✨ ' : '';
         const playerName = document.getElementById('player-name');
-        playerName.textContent = playerShinyPrefix + (playerData?.name || playerPokemon.name);
+        playerName.textContent = playerShinyPrefix + (playerPokemon.name || playerData?.name);
         document.getElementById('player-level').textContent = `Lv.${playerPokemon.level}`;
         const playerHpPercent = Math.max(0, battle.playerCurrentHp / battle.playerMaxHp * 100);
         document.getElementById('player-hp-bar').style.width = `${playerHpPercent}%`;
@@ -775,7 +860,9 @@ class GameUI {
 
         // 玩家屬性 + 對敵方剋制圖示
         let playerTypeIcon = '';
-        if (playerEffectiveness > 1) {
+        if (playerEffectiveness === 0) {
+            playerTypeIcon = `<span class="matchup-icon matchup-down" title="我方攻擊對敵方無效">🚫</span>`;
+        } else if (playerEffectiveness > 1) {
             playerTypeIcon = `<span class="matchup-icon matchup-up" title="剋制敵方">⚔️</span>`;
         } else if (playerEffectiveness < 1) {
             playerTypeIcon = `<span class="matchup-icon matchup-down" title="被敵方抵抗">🛡️</span>`;
@@ -794,10 +881,7 @@ class GameUI {
             : '';
         const playerTypesElement = document.getElementById('player-types');
         playerTypesElement.innerHTML = `${playerTypesHtml} ${playerOverdriveBadge}${playerCalyrexFormBadge}${playerTerapagosFormBadge}`;
-        document.getElementById('player-terapagos-energy')?.remove();
-        if (Number(playerPokemonId) === 1024) {
-            playerTypesElement.insertAdjacentHTML('afterend', this.getTerapagosEnergyHtml('terapagos-energy terapagos-battle-energy', 'player-terapagos-energy'));
-        }
+        this.updateBattleEnergyDisplay(playerPokemonId);
         this._updateBattleSkills(wildTypes);
 
         // 玩家精靈圖（根據圖鑑展示偏好決定是否使用閃光圖片）
@@ -839,8 +923,9 @@ class GameUI {
         const enemyId = this.game.currentBattle?.wild?.id;
         const types = wildTypes || this.game.getPokemonTypes(enemyId, this.game.currentBattle?.wild);
         const selected = this.game._getBestSkillForEnemy(playerId, types);
-        const skills = this.game.getSkillForPokemon(playerId)?.skills || [];
-        this._setBattleSkills('player-battle-skill', skills, selected.type, selected.name, skills.length < 2);
+        const regularSkills = this.game.getSkillForPokemon(playerId)?.skills || [];
+        const skills = [...regularSkills, ...this.game.getSignatureMoves(playerId)];
+        this._setBattleSkills('player-battle-skill', skills, selected.type, selected.name, regularSkills.length < 2);
         const towerSkill = this.game._towerMode && this.game.currentBattle?.wild?.isTowerEnemy
             ? this.game._getTowerEnemySkill(enemyId, POKEMON_DATA[playerId]?.types || []) : null;
         const enemySkills = towerSkill ? (POKEMON_DATA[enemyId]?.types || []).flatMap(type => {
@@ -857,18 +942,37 @@ class GameUI {
         if (container.dataset.skillsKey === key) return;
         container.dataset.skillsKey = key;
         container.replaceChildren();
+        let signatureRow = null;
         for (const skill of candidates) {
             const label = document.createElement('span');
-            label.textContent = skill.name;
+            const activePokemonId = this.game.gameState.team[this.game.gameState.activePokemonIndex];
+            const terapagosStellarMove = Number(activePokemonId) === 1024 && this.game.getPokemonForm(activePokemonId) === 'stellar';
+            const signatureLocked = skill.isSignatureMove && !terapagosStellarMove && this.game.getSignatureMoveWins(activePokemonId) < 5;
+            label.textContent = signatureLocked ? `🔒 ${skill.name}` : skill.name;
             label.className = `type-badge ${TYPE_NAMES[skill.type] ? skill.type : 'battle-skill-basic'}`;
+            if (signatureLocked) {
+                label.classList.add('battle-skill-signature-locked');
+                label.setAttribute('aria-disabled', 'true');
+            }
             const isSelected = skill.name === selectedName && skill.type === selectedType;
             if (candidates.length > 1 && !isSelected) {
                 label.classList.add('battle-skill-unused');
-                label.title = '目前未使用的技能';
+                label.title = signatureLocked
+                    ? `專屬招式尚未充滿能量（${this.game.getSignatureMoveWins(this.game.gameState.team[this.game.gameState.activePokemonIndex])}/5）`
+                    : '目前未使用的技能';
             } else if (isSelected) {
                 label.title = '目前使用的招式';
             }
-            container.appendChild(label);
+            if (skill.isSignatureMove) {
+                if (!signatureRow) {
+                    signatureRow = document.createElement('div');
+                    signatureRow.className = 'battle-signature-row';
+                    container.appendChild(signatureRow);
+                }
+                signatureRow.appendChild(label);
+            } else {
+                container.appendChild(label);
+            }
         }
     }
 
@@ -940,6 +1044,7 @@ class GameUI {
         this._updateBattleSkills();
         const playerSprite = document.getElementById('player-sprite');
         const enemySprite = document.getElementById('enemy-sprite');
+        if (data.isSignatureMove && data.damage > 0) this._playSignatureMoveEffect(data.skillName, data.skillType);
         playerSprite.classList.add('attacking');
         setTimeout(() => {
             playerSprite.classList.remove('attacking');
@@ -950,7 +1055,36 @@ class GameUI {
         const critText = data.critical ? '💥會心一擊！' : '';
         const effectText = data.effectivenessText || '';
         const skillText = data.skillName ? `使用【${data.skillName}】` : '';
-        this.addBattleLog(`${skillText}${critText}造成 ${data.damage} 點傷害 ${effectText}`, 'attack');
+        this.addBattleLog(`${skillText}${critText}造成 ${data.damage} 點傷害 ${effectText}`, data.isSignatureMove ? 'signatureAttack' : 'attack');
+    }
+
+    _playSignatureMoveEffect(moveName = '', moveType = '') {
+        const scene = document.getElementById('battle-scene');
+        if (!scene) return;
+        const typeColors = {
+            normal: ['#fff0a6', '#ffcf4a'], fire: ['#fff0a6', '#ff3b22'], water: ['#a7f5ff', '#1489ff'],
+            electric: ['#fff6a0', '#ffe500'], grass: ['#c7ffad', '#43e75a'], ice: ['#e1ffff', '#4edbff'],
+            fighting: ['#ffe0a8', '#ff572e'], poison: ['#ffd1ff', '#d43dff'], ground: ['#ffe2a1', '#c98235'],
+            flying: ['#e7dcff', '#8c8cff'], psychic: ['#ffd1ed', '#ff3c9e'], bug: ['#e8ff90', '#89d900'],
+            rock: ['#ffe8ad', '#c68a37'], ghost: ['#e6caff', '#9b4dff'], dragon: ['#ffd3ff', '#a72dff'],
+            dark: ['#e7d8ff', '#6351a5'], steel: ['#edffff', '#70b8db'], fairy: ['#ffe0f5', '#ff70bc'],
+        };
+        const layer = document.createElement('div');
+        layer.className = 'signature-vfx signature-vfx--arcade';
+        layer.setAttribute('aria-hidden', 'true');
+        const [light, glow] = typeColors[moveType] || typeColors.normal;
+        layer.style.setProperty('--vfx-light', light);
+        layer.style.setProperty('--vfx-glow', glow);
+        const title = document.createElement('div');
+        title.className = 'signature-vfx__title';
+        const name = document.createElement('strong');
+        name.textContent = moveName || '專屬招式';
+        const caption = document.createElement('small');
+        caption.textContent = '★ MAX POWER ★';
+        title.append(name, caption);
+        layer.append(title);
+        scene.appendChild(layer);
+        window.setTimeout(() => layer.remove(), 1250);
     }
 
     onEnemyAttack(data) {
@@ -1046,7 +1180,8 @@ class GameUI {
         else if (log.type === 'defeat') colorClass = 'log-defeat';
         else if (log.type === 'evolution') colorClass = 'log-evolution';
         else if (log.type === 'shiny') colorClass = 'log-shiny';
-        return `<div class="log-entry ${colorClass}"><span class="log-time">[${log.time}]</span> ${log.message}</div>`;
+        else if (log.type === 'signatureAttack') colorClass = 'log-signature-attack';
+        return `<div class="log-entry ${colorClass}"><span class="log-time">[${log.time}]</span> <span class="log-message">${log.message}</span></div>`;
     }
 
     renderBattleLogs() {
@@ -1105,6 +1240,7 @@ class GameUI {
         const shinyToggle = document.getElementById('necrozma-fusion-shiny-toggle');
         const confirm = document.getElementById('necrozma-fusion-partner-confirm');
         const partners = this.game.getNecrozmaFusionPartnersInTeam();
+        const canUseShiny = this.game.isPokemonFormUnlocked(800, 'ultra');
         let selectedPartner = null;
         let selectedShiny = false;
         const updatePreviews = () => {
@@ -1124,6 +1260,7 @@ class GameUI {
         };
         solgaleoChoice.hidden = !partners.includes(791);
         lunalaChoice.hidden = !partners.includes(792);
+        shinyToggle.hidden = !canUseShiny;
         solgaleoChoice.classList.remove('selected');
         lunalaChoice.classList.remove('selected');
         solgaleoChoice.setAttribute('aria-pressed', 'false');
@@ -1375,10 +1512,16 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
             // 技能等級顯示（0不顯示）
             const skillLevel = storedData ? (storedData.skillLevel || 0) : 0;
             const skillBadgeHtml = skillLevel > 0 ? ' <span class="team-skill-badge" title="親自升級過技能，可免除Lv.500使用門檻">⚡技能</span>' : '';
-            const canUpgradeSkill = this.game.isSkillUnlocked() && storedData && storedData.level >= SKILL_LEVEL_REQUIREMENT && skillLevel < MAX_SKILL_LEVEL;
-            const terapagosEnergyHtml = Number(pokemonId) === 1024
+            const hasUpgradeableType = storedData && this.game.getPokemonTypes(pokemonId).some(type =>
+                Number(this.game.gameState.skillLevelsByType?.[type] || 0) < MAX_SKILL_LEVEL
+            );
+            const canUpgradeSkill = this.game.isSkillUnlocked() && storedData && storedData.level >= SKILL_LEVEL_REQUIREMENT && hasUpgradeableType;
+            const transition = this.game.getSignatureFormTransition(pokemonId);
+            const energyHtml = transition && pokemon.form === transition.form
+                ? this.getTemporarySignatureFormDurationHtml(pokemonId)
+                : Number(pokemonId) === 1024
                 ? this.getTerapagosEnergyHtml()
-                : '';
+                : this.game.getSignatureMoves(pokemonId).length ? this.getSignatureEnergyHtml(pokemonId) : '';
 
             slot.innerHTML = `
             <div class="slot-main-row${POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386 || canToggleKyuremFusion ? ' has-form-actions' : ''}">
@@ -1386,7 +1529,7 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                     <div class="slot-info">
                         <div class="slot-name"><span class="slot-name-main">${teamDisplayName}</span>${showShiny ? '<span class="team-shiny-mark" title="閃光">✨</span>' : ''}${isActive ? '<span class="team-active-mark" title="目前出戰">⚔️</span>' : ''}${towerFainted ? '<span class="tower-fainted-label">已倒下</span>' : ''}<small class="team-level">Lv.${pokemon.level}</small>${skillBadgeHtml}</div>
                         <div class="slot-type-nature${calyrexRiderBadgeHtml ? ' calyrex-rider-row' : ''}">${typeBadges}${overdriveBadgeHtml}${calyrexRiderBadgeHtml}</div>
-                        ${terapagosEnergyHtml}
+                        ${energyHtml}
                     </div>
                     <div class="team-slot-actions${POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386 || canToggleKyuremFusion ? ' has-form-actions' : ''}">
                         <div class="team-slot-primary-actions">
@@ -1394,7 +1537,7 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                             ${!fusionLocked && !isActive && !this.game._towerMode && this.game.gameState.team.length > 1 ? `<button class="remove-btn" onclick="gameUI.removeFromTeam(${index})">移除</button>` : ''}
                         </div>
                         <div class="team-slot-secondary-actions">
-                            ${!this.game._towerMode && !fusionLocked && ![898, 1024].includes(Number(pokemonId)) && (POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386) ? '<button type="button" class="deoxys-form-team-btn">型態</button>' : ''}
+                            ${!this.game._towerMode && !fusionLocked && !transition && ![898, 1024].includes(Number(pokemonId)) && (POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386) ? '<button type="button" class="deoxys-form-team-btn">型態</button>' : ''}
                             ${!this.game._towerMode && canToggleKyuremFusion ? `<button type="button" class="kyurem-fusion-btn">${this.game.isKyuremFused() ? '解除合體' : '合體'}</button>` : ''}
                             ${!this.game._towerMode && canToggleNecrozmaFusion ? `<button type="button" class="necrozma-fusion-btn">${this.game.isNecrozmaFused() ? '解除合體' : '合體'}</button>` : ''}
                             ${!this.game._towerMode && canToggleCalyrexFusion ? `<button type="button" class="calyrex-fusion-btn">${this.game.isCalyrexFused() ? '解除合體' : '合體'}</button>` : ''}
@@ -1478,7 +1621,10 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                 const formLabel = document.createElement('small');
                 formLabel.className = 'deoxys-form-label pokemon-form-badge';
                 const selectedFormName = formNames[pokemon.form]?.name || formNames[pokemon.form] || '普通';
-                formLabel.textContent = formatPokemonFormDisplayName(selectedFormName);
+                const temporaryTransition = this.game.getSignatureFormTransition(pokemonId);
+                formLabel.textContent = temporaryTransition && pokemon.form === temporaryTransition.form
+                    ? `${temporaryTransition.displayName} · 剩餘 ${this.game.gameState[temporaryTransition.remainingKey] || 0} 場`
+                    : formatPokemonFormDisplayName(selectedFormName);
                 slot.querySelector('.slot-type-nature')?.appendChild(formLabel);
             }
         slot.querySelector('.deoxys-form-team-btn')?.addEventListener('click', event => {
@@ -1537,6 +1683,7 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                 const currentBest = this.game.getBestTeamMemberForEnemy(this.game.currentBattle.wild);
                 if (currentBest >= 0) activeIndex = currentBest;
             }
+            this.game._revertKeldeoWhenSwitchedOut(oldActiveId, applyTeam[activeIndex]);
             this.game.setActivePokemon(activeIndex);
             this.game.save();
             this.renderTeam();
@@ -1592,8 +1739,11 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
             pairs.push(`<div class="recommend-pair">${sprite(removed[i], '移出')}<span class="recommend-arrow" aria-hidden="true">→</span>${sprite(added[i], '加入', added[i] === proposed[result.activeIndex])}</div>`);
         }
         const retained = unchanged.map(id => sprite(id, '保留', id === proposed[result.activeIndex])).join('');
+        const recommendationTime = Number.isFinite(result.averageTime)
+            ? `${Math.round(result.averageTime / 100) / 10}`
+            : '部分敵人無法造成傷害（僵局會跳過且不給獎勵）';
         document.getElementById('team-recommend-content').innerHTML = `
-            <div class="recommend-summary">${result.targetLevel !== null ? `未來潛力 · 模擬 Lv.${result.targetLevel}（不代表目前戰力）` : '現在最強 · 實際等級'}<br>${pairs.length ? `隊伍變更 ${pairs.length} 組` : '目前隊伍已是本次比較的推薦結果'} · ${result.targetLevel !== null ? '綜合分數（秒，含倒下風險懲罰）' : '道路預估（秒／場）'} ${Math.round(result.averageTime / 100) / 10}</div>
+            <div class="recommend-summary">${result.targetLevel !== null ? `未來潛力 · 模擬 Lv.${result.targetLevel}（不代表目前戰力）` : '現在最強 · 實際等級'}<br>${pairs.length ? `隊伍變更 ${pairs.length} 組` : '目前隊伍已是本次比較的推薦結果'} · ${result.targetLevel !== null ? '綜合分數（秒，含倒下風險懲罰）' : '道路預估（秒／場）'} ${recommendationTime}</div>
             ${result.targetLevel !== null ? `<div class="recommend-summary">模擬技能滿級及未擁有的進化，不檢查地區解鎖；圖鑑加成僅計已擁有。套用隊伍：${result.applyTeam.map(id => POKEMON_DATA[id].name).join('、')}。實際戰力可能低於模擬。</div>` : ''}
             ${pairs.length ? `<div class="recommend-pairs">${pairs.join('')}</div>` : ''}
             ${retained ? `<h3 class="recommend-subtitle">保留的隊員</h3><div class="recommend-retained">${retained}</div>` : ''}`;
@@ -1712,8 +1862,9 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
         this._addToTeamWithAppearance(pokemonId, 'normal');
     }
 
-    _getSkillUpgradePreview(type, skillGain) {
+    _getSkillUpgradePreview(type, pokemonLevel) {
         const currentLevel = Math.max(0, Number(this.game.gameState.skillLevelsByType?.[type]) || 0);
+        const skillGain = Math.min(MAX_SKILL_LEVEL - currentLevel, Math.floor(pokemonLevel / SKILL_LEVEL_REQUIREMENT));
         const nextLevel = Math.min(MAX_SKILL_LEVEL, currentLevel + skillGain);
         const currentSkill = SKILL_DATA[type]?.find(skill => skill.level === currentLevel) || null;
         const nextSkill = SKILL_DATA[type]?.find(skill => skill.level === nextLevel) || null;
@@ -1730,14 +1881,15 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
         const pokemonName = POKEMON_DATA[pokemonId]?.name;
         const stored = this.game.getStoredData(pokemonId);
         if (!pokemonName || !stored) return;
-        const skillLevel = stored.skillLevel || 0;
-        const skillGain = Math.max(0, Math.min(MAX_SKILL_LEVEL - skillLevel, Math.floor(stored.level / SKILL_LEVEL_REQUIREMENT)));
         const types = this.game.getPokemonTypes(pokemonId);
         if (!types.length) return;
-        let selectedType = types.length === 1 ? types[0] : null;
+        let selectedType = types.length === 1 && Number(this.game.gameState.skillLevelsByType?.[types[0]] || 0) < MAX_SKILL_LEVEL
+            ? types[0]
+            : null;
         const typeOptions = types.map(type => {
-            const preview = this._getSkillUpgradePreview(type, skillGain);
-            return `<button class="skill-upgrade-option" type="button" data-skill-type="${type}" aria-pressed="false"><span class="skill-upgrade-option-head"><span class="type-badge ${type}">${TYPE_NAMES[type] || type}</span><span>Lv.${preview.currentLevel} → Lv.${preview.nextLevel}</span></span><span class="skill-upgrade-option-moves">${preview.currentText} → ${preview.nextText}</span></button>`;
+            const preview = this._getSkillUpgradePreview(type, stored.level);
+            const maxed = preview.currentLevel >= MAX_SKILL_LEVEL;
+            return `<button class="skill-upgrade-option" type="button" data-skill-type="${type}" aria-pressed="false" ${maxed ? 'disabled' : ''}><span class="skill-upgrade-option-head"><span class="type-badge ${type}">${TYPE_NAMES[type] || type}</span><span>${maxed ? '已滿級' : `Lv.${preview.currentLevel} → Lv.${preview.nextLevel}`}</span></span><span class="skill-upgrade-option-moves">${maxed ? preview.currentText : `${preview.currentText} → ${preview.nextText}`}</span></button>`;
         }).join('');
         const overlay = document.createElement('div');
         overlay.className = 'modal-overlay skill-upgrade-overlay';
@@ -1782,7 +1934,7 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
     showDeoxysFormDialog(pokemonId, mode = 'edit') {
         const id = Number(pokemonId);
         const entry = POKEMON_FORM_DATA[id];
-        if ((!entry && id !== 386) || this.game._towerMode) return;
+        if ((!entry && id !== 386) || this.game._towerMode || (id === 647 && this.game.getPokemonForm(647) === 'resolute')) return;
         if (mode === 'edit' && (!this.game.gameState.team.includes(id) || this.game.isFusionLockedPokemon(id))) return;
         if (mode === 'pokedex' && this.game.gameState.pokedex[id] !== 'caught') return;
         if (mode === 'pokedex' && this.game.isFusionLockedPokemon(id)) return;
@@ -1794,7 +1946,8 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
             normal: { name: '普通形態', sprite: 'normal' }, attack: { name: '攻擊形態', sprite: 'attack' },
             defense: { name: '防禦形態', sprite: 'defense' }, speed: { name: '速度形態', sprite: 'speed' },
         };
-        const selectableForms = Object.fromEntries(Object.entries(forms).filter(([, data]) => !data.fusionPartner));
+        const transition = this.game.getSignatureFormTransition(id);
+        const selectableForms = Object.fromEntries(Object.entries(forms).filter(([form, data]) => !data.fusionPartner && !(transition && form === transition.form)));
         const currentForm = this.game.getPokemonForm(id);
         dialog.classList.toggle('many-forms', Object.keys(selectableForms).length > 4);
         options.innerHTML = `<legend><span>型態（影響屬性與種族值）</span></legend>${Object.entries(selectableForms).map(([form, data]) => {
@@ -1825,7 +1978,11 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
         updateDeoxysPreviews();
         const speciesName = POKEMON_DATA[id]?.name || '寶可夢';
         document.getElementById('deoxys-form-title').textContent = mode === 'add' ? `加入${speciesName}` : `設定${speciesName}`;
-        document.getElementById('deoxys-form-description').textContent = id === 800
+        document.getElementById('deoxys-form-description').textContent = id === 647
+            ? '凱路迪歐累積 5 場勝利後可使用神秘之劍；使用後自動進入覺悟型態，持續 5 場戰鬥。覺悟型態無法手動切換。'
+            : id === 648
+                ? '美洛耶塔累積 5 場勝利後可使用古老之歌；成功造成傷害後自動進入舞步形態，持續 5 場戰鬥。舞步形態無法手動切換。'
+            : id === 800
             ? '究極形態：取得奈克洛茲瑪的 6V 與閃光後解鎖；黃昏之鬃與拂曉之翼請使用合體按鈕。'
             : id === 718
                 ? '50%：捕獲 6V 解鎖；完全體：捕獲閃光解鎖。'
@@ -1961,7 +2118,12 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                 this.game.gameState.settings = this.game.gameState.settings || {};
                 this.game.gameState.settings.oneShotStrategy = radio.value;
                 this.game.save();
-                const labels = { fastest: '🏃 速度最快', lowest_level: '📈 等級最低', no_change: '🔒 不改變', balanced: '⚖️ 平衡' };
+                const labels = {
+                    fastest: '🏃 速度最快（可一擊者）',
+                    lowest_level: '📈 等級最低（可一擊者）',
+                    no_change: '🔒 保留目前出戰（可一擊時）',
+                    balanced: '⚖️ 平衡（無可一擊者時）',
+                };
                 this.showToast(`⚡ 自動出戰策略：${labels[radio.value] || radio.value}`);
             });
         });
@@ -2031,12 +2193,16 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
         if (!btn) return;
         btn.addEventListener('click', () => {
             const getCandidates = () => Object.entries(this.game.gameState.caughtPokemon)
-                .filter(([id, stored]) => stored && POKEMON_DATA[id] && stored.level >= SKILL_LEVEL_REQUIREMENT && (stored.skillLevel || 0) < MAX_SKILL_LEVEL)
-                .map(([id, stored]) => ({
-                    id: Number(id), level: stored.level, skill: stored.skillLevel || 0,
-                    types: this.game.getPokemonTypes(Number(id)),
-                    gain: Math.min(MAX_SKILL_LEVEL - (stored.skillLevel || 0), Math.floor(stored.level / SKILL_LEVEL_REQUIREMENT)),
-                }));
+                .flatMap(([id, stored]) => {
+                    if (!stored || !POKEMON_DATA[id] || stored.level < SKILL_LEVEL_REQUIREMENT) return [];
+                    const types = this.game.getPokemonTypes(Number(id));
+                    const upgradeableTypes = types.filter(type =>
+                        Number(this.game.gameState.skillLevelsByType?.[type] || 0) < MAX_SKILL_LEVEL
+                    );
+                    return upgradeableTypes.length
+                        ? [{ id: Number(id), level: stored.level, skill: stored.skillLevel || 0, types, upgradeableTypes }]
+                        : [];
+                });
             const candidates = getCandidates();
             if (!this.game.isSkillUnlocked() || candidates.length === 0) {
                 this.showToast('⚠️ 目前沒有可升級技能的寶可夢');
@@ -2046,16 +2212,16 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                 const shiny = this.game.gameState.pokedexDisplay?.[p.id] === 'shiny';
                 const url = shiny ? getShinyPokemonSpriteUrl(p.id) : getPokemonSpriteUrl(p.id);
                 const sharedTypes = p.types.map(type => {
-                    const preview = this._getSkillUpgradePreview(type, p.gain);
+                    const preview = this._getSkillUpgradePreview(type, p.level);
                     const summary = `${TYPE_NAMES[type] || type} Lv.${preview.currentLevel}→${preview.nextLevel}：${preview.currentText}→${preview.nextText}`;
                     return p.types.length > 1
-                        ? `<option value="${type}">${summary}</option>`
+                        ? `<option value="${type}" ${preview.currentLevel >= MAX_SKILL_LEVEL ? 'disabled' : ''}>${preview.currentLevel >= MAX_SKILL_LEVEL ? `${TYPE_NAMES[type] || type} 已滿級` : summary}</option>`
                         : `<span>${summary}</span>`;
                 }).join('');
                 const targetControl = p.types.length > 1
                     ? `<select class="skill-bulk-target" data-skill-target="${p.id}" aria-label="選擇${POKEMON_DATA[p.id].name}的升級屬性"><option value="">選擇升級屬性</option>${sharedTypes}</select>`
                     : sharedTypes;
-                return `<span class="skill-bulk-row"><span class="skill-bulk-sprite"><img src="${url}" alt="" loading="lazy" onerror="fallbackPokemonSprite(this, ${p.id}, ${!!shiny}, '🔵')"></span><strong>${POKEMON_DATA[p.id].name}</strong><span>等級 ${p.level} → 1</span><span>個人升級 ${p.skill} → ${p.skill + p.gain}<br>${targetControl}</span></span>`;
+                return `<span class="skill-bulk-row"><span class="skill-bulk-sprite"><img src="${url}" alt="" loading="lazy" onerror="fallbackPokemonSprite(this, ${p.id}, ${!!shiny}, '🔵')"></span><strong>${POKEMON_DATA[p.id].name}</strong><span>等級 ${p.level} → 1</span><span>個人技能升級累積 ${p.skill} 次<br>${targetControl}</span></span>`;
             }).join('');
             let bulkOverlay = null;
             bulkOverlay = this.showConfirmDialog(
@@ -2825,7 +2991,10 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
 
                 // 升級技能按鈕（需要技能系統已解鎖、等級>=1000、技能等級<8）
                 let skillBtnHtml = '';
-                if (skillUnlockedGlobal && storedData && storedData.level >= SKILL_LEVEL_REQUIREMENT && currentSkillLevel < MAX_SKILL_LEVEL) {
+                const hasUpgradeableType = this.game.getPokemonTypes(Number(id)).some(type =>
+                    Number(this.game.gameState.skillLevelsByType?.[type] || 0) < MAX_SKILL_LEVEL
+                );
+                if (skillUnlockedGlobal && storedData && storedData.level >= SKILL_LEVEL_REQUIREMENT && hasUpgradeableType) {
                     skillBtnHtml = `<button class="dex-skill-btn" data-pokemon-id="${id}" title="Lv.${SKILL_LEVEL_REQUIREMENT}可升級並共享當前屬性技能；等級與經驗重置">⚡ 升級技能</button>`;
                 }
 
@@ -2842,7 +3011,7 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
                             ${hasShiny && !(Number(id) === 898 && this.game.isCalyrexFused()) ? `<button class="shiny-toggle-btn${isShowingShiny ? ' active' : ''}" data-pokemon-id="${id}" title="${isShowingShiny ? '切換為原始' : '切換為閃光'}">✨</button>` : ''}
                             <div class="dex-team-action-stack">
                                 ${buttonHtml}
-                                ${![898, 1024].includes(Number(id)) && (POKEMON_FORM_DATA[id] || Number(id) === 386) ? `<button class="dex-deoxys-form-btn" data-pokemon-id="${id}" title="選擇目前型態">型態</button>` : ''}
+                                ${!this.game.getSignatureFormTransition(Number(id)) && ![898, 1024].includes(Number(id)) && (POKEMON_FORM_DATA[id] || Number(id) === 386) ? `<button class="dex-deoxys-form-btn" data-pokemon-id="${id}" title="選擇目前型態">型態</button>` : ''}
                             </div>
                             ${skillBtnHtml}
                         </div>
@@ -3505,7 +3674,7 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
             ['結算地圖', `${report.startRoute} → ${report.endRoute}`]
         ]);
         addSection('② 戰鬥與收穫', [
-            ['完成 / 勝利 / 失敗', `${number(report.wins + report.defeats)} / ${number(report.wins)} / ${number(report.defeats)} 場`],
+            ['勝利 / 失敗 / 僵局跳過', `${number(report.wins)} / ${number(report.defeats)} / ${number(report.stalemates)} 場`],
             ['獲得經驗 / 金幣', `+${number(report.exp)} / +${number(report.gold)}`],
             ['新獲得形態 / 個體值提升', `${number(report.newCaught)} / ${number(report.ivUpdated)} 隻`],
             ['新閃光形態 / 新 6V', `${number(report.newShiny.length)} / ${number(report.new6v)} 隻`]

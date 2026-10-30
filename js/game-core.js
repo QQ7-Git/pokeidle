@@ -412,6 +412,7 @@ class GameCore {
             remainingMs: totalMs,
             battlesSimulated: 0,
             defeats: 0,
+            stalemates: 0,
             routeSwitches: 0,
             route: route,
             activePokemonId: activePokemonId,
@@ -459,6 +460,7 @@ class GameCore {
             if (this.gameState.settings?.autoSwitchBest && this.gameState.team.length > 1) {
                 const bestIndex = this._getBestTeamMemberForEnemyOffline(wildPokemon, s.cachedTeamStats, s.cachedTeamLevels);
                 if (bestIndex !== -1 && bestIndex !== this.gameState.activePokemonIndex) {
+                    this._revertKeldeoWhenSwitchedOut(s.activePokemonId, this.gameState.team[bestIndex]);
                     this.gameState.activePokemonIndex = bestIndex;
                     // 切換後使用快取屬性
                     s.activePokemonId = this.gameState.team[bestIndex];
@@ -482,12 +484,15 @@ class GameCore {
             const wildTypes = this.getPokemonTypes(wildPokemon.id, wildPokemon);
 
             // 獲取最優技能（複用公共方法）
-            const bestSkill = this._getBestSkillForEnemy(s.activePokemonId, wildTypes, s.cachedPlayerLevel, s.playerStats.attack, enemyStats.defense);
+            let bestSkill = this._getBestSkillForEnemy(s.activePokemonId, wildTypes, s.cachedPlayerLevel, s.playerStats.attack, enemyStats.defense);
 
             // 模擬單場戰鬥
             let battleTime = 0;
             let playerTimer = 0;
             let enemyTimer = 0;
+            let playerAttackWasZero = false;
+            let enemyAttackWasZero = false;
+            let stalemate = false;
 
             while (enemyHp > 0 && s.playerHp > 0) {
                 const playerTimeToAttack = s.playerAttackInterval - playerTimer;
@@ -516,6 +521,11 @@ class GameCore {
                         bestSkill.type
                     );
                     enemyHp -= result.damage;
+                    playerAttackWasZero = result.damage === 0;
+                    if (bestSkill.isSignatureMove && Number(s.activePokemonId) !== 1024 && result.damage > 0) {
+                        this._consumeSignatureMoveEnergy(s.activePokemonId);
+                        bestSkill = this._getBestSkillForEnemy(s.activePokemonId, wildTypes, s.cachedPlayerLevel, s.playerStats.attack, enemyStats.defense);
+                    }
                 }
 
                 // 敵方攻擊 — #5 使用快取閃避率
@@ -534,8 +544,22 @@ class GameCore {
                             0
                         );
                         s.playerHp -= result.damage;
+                        enemyAttackWasZero = result.damage === 0;
                     }
                 }
+
+                if (playerAttackWasZero && enemyAttackWasZero) {
+                    stalemate = true;
+                    break;
+                }
+            }
+
+            if (stalemate) {
+                this._completeKeldeoBattle(s.activePokemonId);
+                s.remainingMs -= battleTime;
+                s.stalemates++;
+                batchCount++;
+                continue;
             }
 
             s.remainingMs -= battleTime;
@@ -543,6 +567,7 @@ class GameCore {
             // 玩家被擊敗
             if (s.playerHp <= 0) {
                 s.defeats++;
+                this._completeKeldeoBattle(s.activePokemonId);
                 s.playerHp = 0;
                 const healTime = 5000;
                 s.remainingMs -= healTime;
@@ -556,6 +581,8 @@ class GameCore {
             if (enemyHp <= 0) {
                 s.battlesSimulated++;
                 batchCount++;
+                const keldeoDurationExpired = this._completeKeldeoBattle(s.activePokemonId);
+                if (!keldeoDurationExpired) this._recordSignatureMoveVictory(s.activePokemonId);
 
                 // 呼叫離線最佳化版勝利結算
                 const rewards = this._processVictoryRewardsOffline(
@@ -682,7 +709,7 @@ class GameCore {
         }
         const routeName = id => this.getRoute(id)?.name || id;
         return { ...start, pokemon: undefined, startRoute: routeName(start.route),
-            endRoute: routeName(sim.route?.id || state.currentRoute), wins, defeats: sim.defeats || 0,
+            endRoute: routeName(sim.route?.id || state.currentRoute), wins, defeats: sim.defeats || 0, stalemates: sim.stalemates || 0,
             routeSwitches: sim.routeSwitches || 0, exp: (state.stats.totalExp || 0) - start.stats.exp,
             gold: (state.stats.totalGold || 0) - start.stats.gold, newCaught, ivUpdated, new6v,
             newShiny, team, reserveCount, reserveLevels, events: this._offlineEvents || [],
@@ -845,6 +872,212 @@ class GameCore {
         return getPokemonFormDefinition(Number(pokemonId), this.getPokemonForm(pokemonId, pokemon));
     }
 
+    // 隊伍與戰鬥顯示名稱：保留寶可夢本名，並附上可讀的型態名稱。
+    getPokemonDisplayName(pokemonId, pokemon = null) {
+        const id = Number(pokemonId);
+        const baseName = POKEMON_DATA[id]?.name || `#${id}`;
+        if (id === 386) {
+            const deoxysFormNames = { normal: '普通', attack: '攻擊', defense: '防禦', speed: '速度' };
+            const formLabel = deoxysFormNames[this.getPokemonForm(id, pokemon)] || deoxysFormNames.normal;
+            return `${baseName}（${formLabel}）`;
+        }
+        const formData = this.getPokemonFormData(id, pokemon);
+        if (!formData) return baseName;
+
+        const formName = String(formData.name || '');
+        const speciesName = String(formData.displayName || baseName);
+        if (!formName || formData.fusionPartner || formName === speciesName || formName.includes(speciesName)) {
+            return formName || speciesName;
+        }
+
+        const formLabel = formName
+            .replace(/(?:形態|型態|屬性)$/, '')
+            .replace(/（([^（）]*)）/g, '$1');
+        if (!formLabel || formLabel === speciesName || formLabel.includes(speciesName)) return speciesName;
+        return `${speciesName}（${formLabel}）`;
+    }
+
+    getSignatureMoves(pokemonId) {
+        const id = Number(pokemonId);
+        const form = this.getPokemonForm(id);
+        const moves = {
+            646: {
+                white: [
+                    { name: '交錯火焰', englishName: 'Fusion Flare', type: 'fire' },
+                    { name: '極寒冷焰', englishName: 'Ice Burn', type: 'ice' },
+                ],
+                black: [
+                    { name: '交錯閃電', englishName: 'Fusion Bolt', type: 'electric' },
+                    { name: '冰凍伏特', englishName: 'Freeze Shock', type: 'ice' },
+                ],
+            },
+            800: {
+                'dusk-mane': [{ name: '流星閃衝', englishName: 'Sunsteel Strike', type: 'steel' }],
+                'dawn-wings': [{ name: '暗影之光', englishName: 'Moongeist Beam', type: 'ghost' }],
+                ultra: [{ name: '焚天滅世熾光爆', englishName: 'Light That Burns the Sky', type: 'psychic' }],
+            },
+            898: {
+                'ice-rider': [{ name: '雪矛', englishName: 'Glacial Lance', type: 'ice' }],
+                'shadow-rider': [{ name: '星碎', englishName: 'Astral Barrage', type: 'ghost' }],
+            },
+            720: {
+                confined: [{ name: '異次元洞', englishName: 'Hyperspace Hole', type: 'psychic' }],
+                unbound: [{ name: '異次元猛攻', englishName: 'Hyperspace Fury', type: 'dark' }],
+            },
+            892: {
+                'single-strike': [{ name: '暗冥強擊', englishName: 'Wicked Blow', type: 'dark' }],
+                'rapid-strike': [{ name: '水流連打', englishName: 'Surging Strikes', type: 'water' }],
+            },
+            647: [{ name: '神秘之劍', englishName: 'Secret Sword', type: 'fighting' }],
+            648: [{ name: '古老之歌', englishName: 'Relic Song', type: 'normal' }],
+            888: {
+                crowned: [{ name: '巨獸斬', englishName: 'Behemoth Blade', type: 'steel' }],
+            },
+            889: {
+                crowned: [{ name: '巨獸彈', englishName: 'Behemoth Bash', type: 'steel' }],
+            },
+            1017: [{ name: '棘藤棒', englishName: 'Ivy Cudgel', type: this.getPokemonTypes(id)[1] || 'grass' }],
+            1024: {
+                stellar: [{ name: '晶光星群', englishName: 'Tera Starstorm', type: 'normal' }],
+            },
+        };
+        if (id === 646 && !this.isKyuremFused()) return [];
+        if (id === 800 && !this.isNecrozmaFused() && form !== 'ultra') return [];
+        if (id === 898 && !this.isCalyrexFused()) return [];
+        const definition = moves[id];
+        const signatureMoves = Array.isArray(definition) ? definition : definition?.[form] || [];
+        return signatureMoves.map(move => ({ ...move, power: 200, isSignatureMove: true }));
+    }
+
+    getSignatureFormTransition(pokemonId) {
+        return ({
+            647: { form: 'resolute', baseForm: 'ordinary', remainingKey: 'keldeoResoluteBattlesRemaining', skipKey: 'keldeoResoluteSkipNextBattleEnd', displayName: '覺悟' },
+            648: { form: 'pirouette', baseForm: 'aria', remainingKey: 'meloettaPirouetteBattlesRemaining', skipKey: 'meloettaPirouetteSkipNextBattleEnd', displayName: '舞步' },
+        })[Number(pokemonId)] || null;
+    }
+
+    isSignatureFormTransitionActive(pokemonId) {
+        const transition = this.getSignatureFormTransition(pokemonId);
+        return !!transition && this.getPokemonForm(pokemonId) === transition.form;
+    }
+
+    getSignatureMoveWins(pokemonId) {
+        return Math.max(0, Math.min(5, Number(this.gameState?.signatureMoveWins?.[Number(pokemonId)]) || 0));
+    }
+
+    _setSignatureMoveWins(pokemonId, wins) {
+        const id = Number(pokemonId);
+        this.gameState.signatureMoveWins ||= {};
+        this.gameState.signatureMoveWins[id] = Math.max(0, Math.min(5, Number(wins) || 0));
+        if (!this._offlineSimState && this.onBattleEvent) {
+            this.onBattleEvent('signatureEnergyChanged', { pokemonId: id, wins: this.gameState.signatureMoveWins[id], maximum: 5 });
+        }
+    }
+
+    _recordSignatureMoveVictory(pokemonId) {
+        // 太樂巴戈斯的專屬招式由五勝星晶變身直接啟用，不使用第二條充能。
+        if (Number(pokemonId) === 1024) return;
+        if (this.isSignatureFormTransitionActive(pokemonId)) return;
+        if (!this.getSignatureMoves(pokemonId).length) return;
+        this._setSignatureMoveWins(pokemonId, this.getSignatureMoveWins(pokemonId) + 1);
+    }
+
+    _consumeSignatureMoveEnergy(pokemonId) {
+        if (this.getSignatureMoveWins(pokemonId) < 5) return false;
+        this._setSignatureMoveWins(pokemonId, 0);
+        if (this.getSignatureFormTransition(pokemonId)) this._activateTemporarySignatureForm(pokemonId);
+        return true;
+    }
+
+    _refreshOfflineSignatureFormStats(pokemonId) {
+        const sim = this._offlineSimState;
+        const index = this.gameState.activePokemonIndex;
+        if (Number(this.gameState.team?.[index]) !== Number(pokemonId)) return;
+        const stats = this.calculateBattleStats(index);
+        if (!stats) return;
+        const types = this.getPokemonTypes(pokemonId);
+        const level = this.getStoredData(pokemonId)?.level || 5;
+        if (sim && Number(sim.activePokemonId) === Number(pokemonId)) {
+            sim.cachedTeamStats[index] = stats;
+            sim.playerStats = stats;
+            sim.playerAttackInterval = this.getAttackInterval(stats.speed);
+            sim.cachedPlayerTypes = types;
+            sim.cachedPlayerLevel = level;
+        }
+        if (this.currentBattle && !sim) {
+            const oldMaxHp = this.currentBattle.playerMaxHp;
+            const hpRatio = oldMaxHp > 0 ? this.currentBattle.playerCurrentHp / oldMaxHp : 1;
+            this.currentBattle.playerStats = stats;
+            this.currentBattle.playerMaxHp = stats.hp;
+            this.currentBattle.playerCurrentHp = Math.max(1, Math.floor(stats.hp * hpRatio));
+            this.currentBattle.playerNextAttack = this.getAttackInterval(stats.speed);
+        }
+    }
+
+    _activateTemporarySignatureForm(pokemonId) {
+        const id = Number(pokemonId);
+        const transition = this.getSignatureFormTransition(id);
+        if (!transition) return false;
+        this.gameState.pokemonForms ||= {};
+        this.gameState.pokemonForms[id] = transition.form;
+        this.gameState[transition.remainingKey] = 5;
+        this.gameState[transition.skipKey] = true;
+        this._refreshOfflineSignatureFormStats(id);
+        if (!this._offlineSimState) this.save();
+        if (!this._offlineSimState && this.onBattleEvent) {
+            this.onBattleEvent('temporarySignatureFormChanged', { pokemonId: id, form: transition.form, battlesRemaining: 5 });
+        }
+        return true;
+    }
+
+    _revertTemporarySignatureForm(pokemonId) {
+        const id = Number(pokemonId);
+        const transition = this.getSignatureFormTransition(id);
+        if (!transition || (this.getPokemonForm(id) !== transition.form && !this.gameState?.[transition.remainingKey])) return false;
+        this.gameState.pokemonForms ||= {};
+        this.gameState.pokemonForms[id] = transition.baseForm;
+        this.gameState[transition.remainingKey] = 0;
+        this.gameState[transition.skipKey] = false;
+        this._refreshOfflineSignatureFormStats(id);
+        if (!this._offlineSimState) this.save();
+        if (!this._offlineSimState && this.onBattleEvent) {
+            this.onBattleEvent('temporarySignatureFormChanged', { pokemonId: id, form: transition.baseForm, battlesRemaining: 0 });
+        }
+        return true;
+    }
+
+    _completeKeldeoBattle(activePokemonId) {
+        const id = Number(activePokemonId);
+        const transition = this.getSignatureFormTransition(id);
+        if (!transition || this.getPokemonForm(id) !== transition.form) return false;
+        if (this.gameState[transition.skipKey]) {
+            this.gameState[transition.skipKey] = false;
+            if (!this._offlineSimState) this.save();
+            return false;
+        }
+        const remaining = Math.max(0, Math.min(5, Number(this.gameState[transition.remainingKey]) || 0));
+        if (remaining <= 1) {
+            this._revertTemporarySignatureForm(id);
+            return true;
+        }
+        this.gameState[transition.remainingKey] = remaining - 1;
+        if (!this._offlineSimState) this.save();
+        if (!this._offlineSimState && this.onBattleEvent) {
+            this.onBattleEvent('temporarySignatureFormChanged', { pokemonId: id, form: transition.form, battlesRemaining: remaining - 1 });
+        }
+        return false;
+    }
+
+    _revertKeldeoWhenSwitchedOut(oldPokemonId, newPokemonId) {
+        if (Number(oldPokemonId) !== Number(newPokemonId) && this.getSignatureFormTransition(oldPokemonId)) {
+            this._revertTemporarySignatureForm(oldPokemonId);
+        }
+    }
+
+    _resetSignatureMoveEnergy(pokemonId) {
+        if (this.getSignatureMoveWins(pokemonId) > 0) this._setSignatureMoveWins(pokemonId, 0);
+    }
+
     getPokemonTypes(pokemonId, pokemon = null) {
         return this.getPokemonFormData(pokemonId, pokemon)?.types || POKEMON_DATA[pokemonId]?.types || [];
     }
@@ -876,11 +1109,20 @@ class GameCore {
     }
 
     setPokemonForm(pokemonId, form) {
-        const entry = POKEMON_FORM_DATA[Number(pokemonId)];
+        const id = Number(pokemonId);
+        const entry = POKEMON_FORM_DATA[id];
+        const transition = this.getSignatureFormTransition(id);
+        if (transition && (form === transition.form || this.getPokemonForm(id) === transition.form)) return false;
         const validDeoxysForm = Number(pokemonId) === 386 && ['normal', 'attack', 'defense', 'speed'].includes(form);
         if ((!entry?.forms?.[form] && !validDeoxysForm) || !this.isPokemonFormUnlocked(pokemonId, form)) return false;
         this.gameState.pokemonForms = this.gameState.pokemonForms || {};
+        const previousForm = this.getPokemonForm(pokemonId);
         this.gameState.pokemonForms[pokemonId] = form;
+        if (transition) {
+            this.gameState[transition.remainingKey] = 0;
+            this.gameState[transition.skipKey] = false;
+        }
+        if (previousForm !== form) this._resetSignatureMoveEnergy(pokemonId);
         const teamIndex = this.gameState.team?.indexOf(Number(pokemonId)) ?? -1;
         if (teamIndex >= 0 && teamIndex === this.gameState.activePokemonIndex && this.currentBattle) this.setActivePokemon(teamIndex);
         this.save();
@@ -898,6 +1140,7 @@ class GameCore {
         }
 
         const wasFused = this.isKyuremFused();
+        const previousPartner = this.getKyuremFusionPartner();
         if (wasFused) {
             this.gameState.kyuremFusion = false;
             delete this.gameState.kyuremFusionPartner;
@@ -917,6 +1160,8 @@ class GameCore {
             if (this.gameState.activePokemonIndex === partnerIndex) this.gameState.activePokemonIndex = kyuremIndex;
         }
 
+        if (wasFused !== this.isKyuremFused() || previousPartner !== this.getKyuremFusionPartner()) this._resetSignatureMoveEnergy(646);
+
         if (this.currentBattle) this.setActivePokemon(this.gameState.activePokemonIndex);
         this.save();
         return {
@@ -934,6 +1179,7 @@ class GameCore {
         const necrozmaIndex = this.gameState.team.indexOf(800);
         if (necrozmaIndex < 0) return { success: false, message: '隊伍中需要奈克洛茲瑪與合體夥伴' };
 
+        const previousPartner = this.getNecrozmaFusionPartner();
         if (this.isNecrozmaFused()) {
             this.gameState.necrozmaFusion = false;
             delete this.gameState.necrozmaFusionPartner;
@@ -946,10 +1192,12 @@ class GameCore {
             }
             this.gameState.necrozmaFusion = true;
             this.gameState.necrozmaFusionPartner = selectedPartner;
-            this.gameState.necrozmaFusionShiny = shiny === true;
+            this.gameState.necrozmaFusionShiny = this.isPokemonFormUnlocked(800, 'ultra') && shiny === true;
             const partnerIndex = this.gameState.team.indexOf(selectedPartner);
             if (this.gameState.activePokemonIndex === partnerIndex) this.gameState.activePokemonIndex = necrozmaIndex;
         }
+
+        if (previousPartner !== this.getNecrozmaFusionPartner()) this._resetSignatureMoveEnergy(800);
 
         if (this.currentBattle) this.setActivePokemon(this.gameState.activePokemonIndex);
         this.save();
@@ -963,6 +1211,7 @@ class GameCore {
         const calyrexIndex = this.gameState.team.indexOf(898);
         if (calyrexIndex < 0) return { success: false, message: '隊伍中需要蕾冠王與合體夥伴' };
 
+        const previousPartner = this.getCalyrexFusionPartner();
         if (this.isCalyrexFused()) {
             this.gameState.calyrexFusion = false;
             delete this.gameState.calyrexFusionPartner;
@@ -979,6 +1228,8 @@ class GameCore {
             const partnerIndex = this.gameState.team.indexOf(selectedPartner);
             if (this.gameState.activePokemonIndex === partnerIndex) this.gameState.activePokemonIndex = calyrexIndex;
         }
+
+        if (previousPartner !== this.getCalyrexFusionPartner()) this._resetSignatureMoveEnergy(898);
 
         if (this.currentBattle) this.setActivePokemon(this.gameState.activePokemonIndex);
         this.save();
@@ -1045,6 +1296,11 @@ class GameCore {
             caughtPokemon: {},      // { pokemonId: { ivs, level, exp } } - 按寶可夢自身ID儲存
             skillLevelsByType: {},   // 各屬性獨立共享的最高技能等級
             skillSystemVersion: 1,
+            signatureMoveWins: {},   // 型態專屬招式勝場充能
+            keldeoResoluteBattlesRemaining: 0,
+            keldeoResoluteSkipNextBattleEnd: false,
+            meloettaPirouetteBattlesRemaining: 0,
+            meloettaPirouetteSkipNextBattleEnd: false,
             shinyDex: {},           // { pokemonId: true } - 已獲得閃光形態的寶可夢
             pokedexDisplay: {},     // { pokemonId: 'shiny' | undefined } - 圖鑑展示偏好（閃光/原始）
             gold: 0,                // 金幣
@@ -1219,7 +1475,7 @@ class GameCore {
         const pokemon = {
             uid: this.generateUID(),
             id: pokemonId,
-            name: this.getPokemonFormData(pokemonId)?.displayName || this.getPokemonFormData(pokemonId)?.name || baseData.name,
+            name: this.getPokemonDisplayName(pokemonId),
             level: level,
             exp: getExpForLevel(baseData.expGroup, level),
             ivs: { ...storedData.ivs },
@@ -1283,16 +1539,18 @@ class GameCore {
         }
         const isShiny = Math.random() < Math.min(1, shinyRate) * (this.gameState?.currentRoute === 'free_hunting' && !this._towerMode ? 0.7 : 1);
 
+        const form = Number(pokemonId) === 718 ? '50' : (POKEMON_FORM_DATA[pokemonId]?.wildForm || POKEMON_FORM_DATA[pokemonId]?.defaultForm || 'normal');
+        const wildPokemonIdentity = { isWild: true, form };
         const pokemon = {
             uid: this.generateUID(),
             id: pokemonId,
-            name: baseData.name,
+            name: this.getPokemonDisplayName(pokemonId, wildPokemonIdentity),
             level: level,
             exp: getExpForLevel(baseData.expGroup, level),
             ivs: ivs,
             isShiny: isShiny,
             isWild: true,
-            form: Number(pokemonId) === 718 ? '50' : (POKEMON_FORM_DATA[pokemonId]?.wildForm || POKEMON_FORM_DATA[pokemonId]?.defaultForm || 'normal'),
+            form,
         };
 
         const stats = this.calculateStats(pokemon);
@@ -1627,10 +1885,20 @@ class GameCore {
         const pokemonTypes = this.getPokemonTypes(pokemonId);
         const skillInfo = this.getSkillForPokemon(pokemonId, attackerLevel);
         const candidates = [];
-        if (!skillInfo || skillInfo.skills.length < 2) {
-            candidates.push({ name: '普通攻擊', power: 50, type: '', effectivenessTypes: pokemonTypes });
+        const terapagosStellar = Number(pokemonId) === 1024 && this.getPokemonForm(pokemonId) === 'stellar';
+        const signatureMovesReady = this.getSignatureMoveWins(pokemonId) >= 5;
+        if (terapagosStellar) {
+            // 五勝充能已用於星晶變身；星晶形態只會選擇晶光星群。
+            candidates.push(...this.getSignatureMoves(pokemonId).map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));
+        } else {
+            if (!skillInfo || skillInfo.skills.length < 2) {
+                candidates.push({ name: '普通攻擊', power: 50, type: '', effectivenessTypes: pokemonTypes });
+            }
+            if (skillInfo) candidates.push(...skillInfo.skills.map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));
+            if (signatureMovesReady) {
+                candidates.push(...this.getSignatureMoves(pokemonId).map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));
+            }
         }
-        if (skillInfo) candidates.push(...skillInfo.skills.map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));
 
         const towerIgnoresType = this._towerMode &&
             this.gameState.tower.currentFloor >= TOWER_NO_TYPE_ADVANTAGE_FLOOR;
@@ -1639,7 +1907,7 @@ class GameCore {
         for (const candidate of candidates) {
             const effectiveness = towerIgnoresType
                 ? 1
-                : getBestTypeEffectiveness(candidate.effectivenessTypes, wildTypes).multiplier;
+                : getBestTypeEffectiveness(candidate.effectivenessTypes, wildTypes, this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0).multiplier;
             const baseDamage = this._getDamageBase(attackerLevel, attackStat, Math.max(1, defenseStat), candidate.power);
             const expectedDamage = Math.floor(baseDamage * effectiveness);
             if (expectedDamage > bestDamage) {
@@ -1647,7 +1915,7 @@ class GameCore {
                 bestDamage = expectedDamage;
             }
         }
-        return { power: best.type ? best.power : 0, name: best.name, type: best.type };
+        return { power: best.type ? best.power : 0, name: best.name, type: best.type, isSignatureMove: !!best.isSignatureMove };
     }
 
     _getTowerEnemySkill(pokemonId, targetTypes) {
@@ -1657,7 +1925,7 @@ class GameCore {
         for (const type of types) {
             const skill = SKILL_DATA[type]?.find(entry => entry.level === MAX_SKILL_LEVEL);
             if (!skill) continue;
-            const score = skill.power * getBestTypeEffectiveness([type], targetTypes).multiplier;
+            const score = skill.power * getBestTypeEffectiveness([type], targetTypes, TOWER_IMMUNITY_MULTIPLIER).multiplier;
             if (score > bestScore) {
                 best = { ...skill, type };
                 bestScore = score;
@@ -1880,7 +2148,9 @@ class GameCore {
         let damage = this._getDamageBase(attackerLevel, attackStat, Math.max(1, defenseStat), power);
         const damageTypes = skillPower > 0 && skillType ? [skillType] : attackerTypes;
         if (damageTypes?.length && defenderTypes?.length) {
-            damage = Math.floor(damage * getBestTypeEffectiveness(damageTypes, defenderTypes).multiplier);
+            const effectiveness = getBestTypeEffectiveness(damageTypes, defenderTypes, this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0).multiplier;
+            if (effectiveness === 0) return 0;
+            damage = Math.floor(damage * effectiveness);
         }
 
         let expectedDamage = 0;
@@ -1949,6 +2219,7 @@ class GameCore {
         const damageTypes = skillPower > 0 && skillType ? [skillType] : attackerTypes;
         if (damageTypes && defenderTypes && damageTypes.length > 0) {
             const result = getBestTypeEffectiveness(damageTypes, defenderTypes);
+            if (result.multiplier === 0) return { damage: 0, criticalHit: false };
             damage = Math.floor(damage * result.multiplier);
         }
 
@@ -2039,7 +2310,11 @@ class GameCore {
             const power = bestAttack.power > 0 ? bestAttack.power : 50;
 
             const baseDmg = Math.floor(((2 * level / 5 + 2) * power * stats.attack / enemyStats.defense) / 50) + 2;
-            const typeResult = getBestTypeEffectiveness(bestAttack.type ? [bestAttack.type] : playerTypes, wildTypes);
+            const typeResult = getBestTypeEffectiveness(
+                bestAttack.type ? [bestAttack.type] : playerTypes,
+                wildTypes,
+                this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0
+            );
             const typeMult = typeResult.multiplier;
             const estimatedDmg = Math.floor(baseDmg * typeMult);
             const minDmg = Math.floor(estimatedDmg * 0.85);
@@ -2093,17 +2368,22 @@ class GameCore {
         const damageTypes = skillPower > 0 && skillType ? [skillType] : attackerTypes;
         if (damageTypes && defenderTypes && damageTypes.length > 0) {
             if (!towerNoTypeAdvantage) {
-                const result = getBestTypeEffectiveness(damageTypes, defenderTypes);
+                const result = getBestTypeEffectiveness(damageTypes, defenderTypes, this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0);
                 typeEffectiveness = result.multiplier;
             }
             damage = Math.floor(damage * typeEffectiveness);
             
             // 屬性效果文字
-            if (typeEffectiveness <= 0.25) effectivenessText = '微弱傷害...';
+            if (typeEffectiveness === 0) effectivenessText = '無效！';
+            else if (typeEffectiveness <= 0.25) effectivenessText = '微弱傷害...';
             else if (typeEffectiveness > 1) effectivenessText = '效果拔群！';
             else if (typeEffectiveness < 1) effectivenessText = '效果不佳...';
         }
 
+        // 免疫不進行會心或隨機傷害；不可被最低傷害保底繞過。
+        if (typeEffectiveness === 0) {
+            return { damage: 0, criticalHit: false, typeEffectiveness, effectivenessText };
+        }
 
         // 會心一擊判定
         let critRate = 0.05; // 預設 ~5%
@@ -2185,6 +2465,10 @@ class GameCore {
             if (this.gameState.settings?.autoSwitchBest && this.gameState.team.length > 1) {
                 const bestIndex = this.getBestTeamMemberForEnemy(wildPokemon);
                 if (bestIndex !== -1 && bestIndex !== this.gameState.activePokemonIndex) {
+                    this._revertKeldeoWhenSwitchedOut(
+                        this.gameState.team[this.gameState.activePokemonIndex],
+                        this.gameState.team[bestIndex]
+                    );
                     this.gameState.activePokemonIndex = bestIndex;
                     this.save();
                     // 通知UI重新整理隊伍面板
@@ -2312,7 +2596,27 @@ class GameCore {
         }
     }
 
-    // 失敗後逐步回覆生命值：每秒回覆20%，直到100%
+    // 雙方都無法造成傷害時跳過一般道路敵人，不觸發勝利或獎勵結算。
+    _skipStalemateBattle() {
+        const battle = this.currentBattle;
+        if (this._towerMode || !battle?.playerAttackWasZero || !battle?.enemyAttackWasZero) return false;
+
+        this.stopBattle();
+        this._completeKeldeoBattle(this.gameState.team[this.gameState.activePokemonIndex]);
+        const pokemonName = battle.wild?.name || POKEMON_DATA[battle.wild?.id]?.name || '敵方寶可夢';
+        this.gameState.currentEnemy = null;
+        delete this.gameState.battleHp;
+        this.save();
+        if (this.onBattleEvent) this.onBattleEvent('stalemateSkipped', { pokemonName, mode: 'route', floorAborted: false });
+        this._nextBattleScheduledAt = Date.now() + 800;
+        this._nextBattleTimeout = setTimeout(() => {
+            this._nextBattleTimeout = null;
+            this._nextBattleScheduledAt = null;
+            this.startBattle();
+        }, 800);
+        return true;
+    }
+
     startHealingAfterDefeat() {
         if (!this.currentBattle) return;
 
@@ -2385,6 +2689,10 @@ class GameCore {
                 skillType
             );
             this.currentBattle.wildCurrentHp -= result.damage;
+            this.currentBattle.playerAttackWasZero = result.damage === 0;
+            const signatureMoveConsumed = bestSkill.isSignatureMove && Number(activePokemonId) !== 1024 && result.damage > 0
+                ? this._consumeSignatureMoveEnergy(activePokemonId)
+                : false;
 
             if (this.onBattleEvent) {
                 this.onBattleEvent('playerAttack', {
@@ -2396,6 +2704,8 @@ class GameCore {
                     maxHp: this.currentBattle.wildMaxHp,
                     skillName: skillName,
                     skillType: skillType,
+                    isSignatureMove: bestSkill.isSignatureMove,
+                    signatureMoveConsumed,
                 });
             }
 
@@ -2438,6 +2748,7 @@ class GameCore {
                     towerSkill?.power || 0
                 );
                 this.currentBattle.playerCurrentHp -= result.damage;
+                this.currentBattle.enemyAttackWasZero = result.damage === 0;
 
                 if (this.onBattleEvent) {
                     this.onBattleEvent('enemyAttack', {
@@ -2454,6 +2765,7 @@ class GameCore {
                 // 玩家寶可夢被擊敗 -> 逐步回覆生命值
                 if (this.currentBattle.playerCurrentHp <= 0) {
                     this.currentBattle.playerCurrentHp = 0;
+                    this._completeKeldeoBattle(this.gameState.team[this.gameState.activePokemonIndex]);
                     if (this._towerMode) {
                         if (this.onBattleEvent) {
                             this.onBattleEvent('playerFainted', {});
@@ -2470,6 +2782,12 @@ class GameCore {
                     return;
                 }
             }
+        }
+
+        if (!this._towerMode) {
+            if (this.currentBattle.playerAttackWasZero === undefined) this.currentBattle.playerAttackWasZero = false;
+            if (this.currentBattle.enemyAttackWasZero === undefined) this.currentBattle.enemyAttackWasZero = false;
+            if (this._skipStalemateBattle()) return;
         }
 
         // 更新HP條（UI）
@@ -2490,6 +2808,8 @@ class GameCore {
         const battle = this.currentBattle;
         const wildPokemon = battle.wild;
         const activePokemonId = this.gameState.team[this.gameState.activePokemonIndex];
+        const keldeoDurationExpired = this._completeKeldeoBattle(activePokemonId);
+        if (!keldeoDurationExpired) this._recordSignatureMoveVictory(activePokemonId);
 
         // 記錄呼叫前的閃光狀態（公共方法內會設定shinyDex）
         const wasShinyRecorded = !!this.gameState.shinyDex[wildPokemon.id];
@@ -3035,21 +3355,32 @@ class GameCore {
             const skill = this._getBestSkillForEnemy(id, profile.types, pokemon.level, stats.attack, profile.stats.defense);
             const power = skill.power > 0 ? skill.power : 50;
             const damage = Math.floor(((2 * pokemon.level / 5 + 2) * power * stats.attack / profile.stats.defense) / 50) + 2;
-            const effectiveness = getBestTypeEffectiveness(skill.type ? [skill.type] : this.getPokemonTypes(id), profile.types).multiplier;
+            const effectiveness = getBestTypeEffectiveness(
+                skill.type ? [skill.type] : this.getPokemonTypes(id),
+                profile.types,
+                this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0
+            ).multiplier;
             const estimatedDamage = Math.floor(damage * effectiveness);
-            const minDamage = Math.max(1, Math.floor(estimatedDamage * 0.85));
+            const minDamage = estimatedDamage === 0 ? 0 : Math.max(1, Math.floor(estimatedDamage * 0.85));
             const interval = this.getAttackInterval(stats.speed);
-            const time = Math.ceil(profile.stats.hp / minDamage) * interval;
+            const time = minDamage > 0 ? Math.ceil(profile.stats.hp / minDamage) * interval : Infinity;
             const canOneShot = minDamage >= profile.stats.hp;
             const balancedMode = this.gameState.settings?.autoSwitchBest && this.gameState.settings?.oneShotStrategy === 'balanced';
             const incomingDps = balancedMode
                 ? this._getAutoSwitchIncomingDps(profile.wild, profile.stats, stats, this.getPokemonTypes(id)) : 0;
             const balanceScore = balancedMode
                 ? this._getBalancedAutoSwitchScore(estimatedDamage, interval, profile.stats.hp, stats.hp, incomingDps) : 0;
-            const balancedTime = canOneShot || !balancedMode ? time : profile.stats.hp / Math.max(balanceScore, 0.001);
-            const enemyEffect = getBestTypeEffectiveness(profile.types, this.getPokemonTypes(id)).multiplier;
-            const incoming = Math.max(1, Math.floor((Math.floor(((2 * profile.wild.level / 5 + 2) * 50 * profile.stats.attack / Math.max(1, stats.defense)) / 50) + 2) * enemyEffect));
-            const threatened = refine && Math.floor(time / this.getAttackInterval(profile.stats.speed)) * incoming >= stats.hp;
+            const balancedTime = canOneShot || !balancedMode
+                ? time
+                : balanceScore > 0 ? profile.stats.hp / balanceScore : Infinity;
+            const enemyEffect = getBestTypeEffectiveness(
+                profile.types,
+                this.getPokemonTypes(id),
+                this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0
+            ).multiplier;
+            const incomingBaseDamage = Math.floor(((2 * profile.wild.level / 5 + 2) * 50 * profile.stats.attack / Math.max(1, stats.defense)) / 50) + 2;
+            const incoming = enemyEffect === 0 ? 0 : Math.max(1, Math.floor(incomingBaseDamage * enemyEffect));
+            const threatened = refine && Number.isFinite(time) && Math.floor(time / this.getAttackInterval(profile.stats.speed)) * incoming >= stats.hp;
             return {
                 time: time + (threatened ? 60000 : 0), balancedTime,
                 interval, level: pokemon.level, canOneShot, dps: estimatedDamage / interval, balanceScore,
@@ -3161,11 +3492,17 @@ class GameCore {
         if (this._towerMode && this._towerFaintedIds?.has(this.gameState.team[index])) return false;
         if (index >= 0 && index < this.gameState.team.length) {
             const oldPokemonId = this.gameState.team[this.gameState.activePokemonIndex];
+            const newPokemonId = this.gameState.team[index];
             if (this._towerMode && this.currentBattle && this._towerHpById) {
                 if (this.currentBattle.wildCurrentHp <= 0) return false;
                 this._towerHpById.set(oldPokemonId, Math.max(0, this.currentBattle.playerCurrentHp));
             }
+            if (index !== this.gameState.activePokemonIndex) this._revertKeldeoWhenSwitchedOut(oldPokemonId, newPokemonId);
             this.gameState.activePokemonIndex = index;
+            if (this.currentBattle) {
+                this.currentBattle.playerAttackWasZero = false;
+                this.currentBattle.enemyAttackWasZero = false;
+            }
             if (this.currentBattle?.wildCurrentHp > 0) {
                 this._setTerapagosBattleForm(this.gameState.team[index]);
             }
@@ -3749,6 +4086,28 @@ _isRouteCompleteByCondition(routeId) {
             if (!parsed.settings) parsed.settings = {};
             if (!parsed.shinyDex) parsed.shinyDex = {};
             if (!parsed.pokemonForms) parsed.pokemonForms = {};
+            const temporarySignatureForms = [
+                { id: 647, form: 'resolute', baseForm: 'ordinary', remainingKey: 'keldeoResoluteBattlesRemaining', skipKey: 'keldeoResoluteSkipNextBattleEnd' },
+                { id: 648, form: 'pirouette', baseForm: 'aria', remainingKey: 'meloettaPirouetteBattlesRemaining', skipKey: 'meloettaPirouetteSkipNextBattleEnd' },
+            ];
+            for (const transition of temporarySignatureForms) {
+                const { id, form, baseForm, remainingKey, skipKey } = transition;
+                parsed[remainingKey] = Math.max(0, Math.min(5, Math.floor(Number(parsed[remainingKey]) || 0)));
+                parsed[skipKey] = !!parsed[skipKey];
+                if (parsed.pokemonForms[id] === form && parsed[skipKey] && parsed[remainingKey] === 4) {
+                    parsed[remainingKey] = 5;
+                }
+                if (parsed.pokemonForms[id] === form && (
+                    parsed[remainingKey] === 0 || parsed.team[parsed.activePokemonIndex] !== id
+                )) {
+                    parsed.pokemonForms[id] = baseForm;
+                    parsed[remainingKey] = 0;
+                    parsed[skipKey] = false;
+                } else if (parsed.pokemonForms[id] !== form) {
+                    parsed[remainingKey] = 0;
+                    parsed[skipKey] = false;
+                }
+            }
             parsed.terapagosStellarWins = Math.max(0, Math.min(5, Math.floor(Number(parsed.terapagosStellarWins) || 0)));
             parsed.terapagosBattleForm = ['terastal', 'stellar'].includes(parsed.terapagosBattleForm) && parsed.currentEnemy
                 ? parsed.terapagosBattleForm
@@ -3847,6 +4206,9 @@ _isRouteCompleteByCondition(routeId) {
             skillMigrationApplied = this._migrateSharedSkillLevels();
             this._updateZygardeFormUnlocks();
             this._updatePokemonFormUnlocks();
+            if (this.gameState.necrozmaFusionShiny && !this.isPokemonFormUnlocked(800, 'ultra')) {
+                this.gameState.necrozmaFusionShiny = false;
+            }
             this.repairHuntingLocation();
             this.recordHighestVisitedRoute();
             this._berryGrowthLastAt = Date.now();
@@ -4634,7 +4996,11 @@ _isRouteCompleteByCondition(routeId) {
 
             // 使用與 calculateDamage 一致的公式預估單次傷害
             const baseDmg = Math.floor(((2 * pokemon.level / 5 + 2) * power * stats.attack / enemyStats.defense) / 50) + 2;
-            const typeResult = getBestTypeEffectiveness(bestAttack.type ? [bestAttack.type] : playerTypes, wildTypes);
+            const typeResult = getBestTypeEffectiveness(
+                bestAttack.type ? [bestAttack.type] : playerTypes,
+                wildTypes,
+                this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0
+            );
             const typeMult = typeResult.multiplier;
             const estimatedDmg = Math.floor(baseDmg * typeMult);
             // 考慮傷害波動最低值(85%)來判定一擊必殺，避免因波動導致需要兩次攻擊
@@ -4679,7 +5045,7 @@ _isRouteCompleteByCondition(routeId) {
     // 返回: { skills: [{ type, name, power }], skillLevel } 或 null
     getSkillForPokemon(pokemonId, level = null) {
         const storedData = this.gameState.caughtPokemon[pokemonId];
-        if (!storedData) return null;
+        if (!storedData || !this.isSkillUnlocked()) return null;
         const pokemonLevel = level ?? storedData.level ?? 0;
         const hasPersonalUnlock = (Number(storedData.skillLevel) || 0) > 0;
         if (!hasPersonalUnlock && pokemonLevel < SKILL_USE_LEVEL_REQUIREMENT) return null;
@@ -4715,8 +5081,6 @@ _isRouteCompleteByCondition(routeId) {
         const storedData = this.gameState.caughtPokemon[pokemonId];
         if (!storedData) return { success: false, message: '未捕獲該寶可夢' };
 
-        const currentSkillLevel = storedData.skillLevel || 0;
-        if (currentSkillLevel >= MAX_SKILL_LEVEL) return { success: false, message: '技能等級已達上限' };
         if (storedData.level < SKILL_LEVEL_REQUIREMENT) return { success: false, message: `等級需達到 ${SKILL_LEVEL_REQUIREMENT} 級` };
 
         const baseData = POKEMON_DATA[pokemonId];
@@ -4728,12 +5092,16 @@ _isRouteCompleteByCondition(routeId) {
             return { success: false, message: '請選擇要升級的屬性技能' };
         }
 
+        this.gameState.skillLevelsByType ||= {};
+        const currentTypeLevel = Math.max(0, Math.min(MAX_SKILL_LEVEL, Math.floor(Number(this.gameState.skillLevelsByType[targetType]) || 0)));
+        if (currentTypeLevel >= MAX_SKILL_LEVEL) return { success: false, message: '該屬性技能已達上限' };
+
         const oldLevel = storedData.level;
 
-        const skillGain = Math.min(MAX_SKILL_LEVEL - currentSkillLevel, Math.floor(oldLevel / SKILL_LEVEL_REQUIREMENT));
+        const skillGain = Math.min(MAX_SKILL_LEVEL - currentTypeLevel, Math.floor(oldLevel / SKILL_LEVEL_REQUIREMENT));
         storedData.level = 1;
         storedData.exp = 0;
-        storedData.skillLevel = currentSkillLevel + skillGain;
+        storedData.skillLevel = (Number(storedData.skillLevel) || 0) + skillGain;
         this._syncSharedSkillLevelForPokemon(pokemonId, skillGain, targetType);
 
         // 檢查進化（因為等級變化可能觸發）
@@ -4778,8 +5146,6 @@ _isRouteCompleteByCondition(routeId) {
             const storedData = this.gameState.caughtPokemon[pokemonId];
             if (!storedData) continue;
 
-            const currentSkillLevel = storedData.skillLevel || 0;
-            if (currentSkillLevel >= MAX_SKILL_LEVEL) continue;
             if (storedData.level < SKILL_LEVEL_REQUIREMENT) continue;
 
             const baseData = POKEMON_DATA[pokemonId];
@@ -4792,13 +5158,17 @@ _isRouteCompleteByCondition(routeId) {
                 continue;
             }
 
+            this.gameState.skillLevelsByType ||= {};
+            const currentTypeLevel = Math.max(0, Math.min(MAX_SKILL_LEVEL, Math.floor(Number(this.gameState.skillLevelsByType[targetType]) || 0)));
+            if (currentTypeLevel >= MAX_SKILL_LEVEL) continue;
+
             const oldLevel = storedData.level;
             if (String(this.gameState.team[this.gameState.activePokemonIndex]) === String(pokemonId)) resetActiveMember = true;
 
-            const skillGain = Math.min(MAX_SKILL_LEVEL - currentSkillLevel, Math.floor(oldLevel / SKILL_LEVEL_REQUIREMENT));
+            const skillGain = Math.min(MAX_SKILL_LEVEL - currentTypeLevel, Math.floor(oldLevel / SKILL_LEVEL_REQUIREMENT));
             storedData.level = 1;
             storedData.exp = 0;
-            storedData.skillLevel = currentSkillLevel + skillGain;
+            storedData.skillLevel = (Number(storedData.skillLevel) || 0) + skillGain;
             this._syncSharedSkillLevelForPokemon(Number(pokemonId), skillGain, targetType);
 
             // 檢查進化
@@ -5321,6 +5691,10 @@ _isRouteCompleteByCondition(routeId) {
         if (this.gameState.settings?.autoSwitchBest && this.gameState.team.length > 1) {
             const bestIndex = this.getBestTeamMemberForEnemy(enemy);
             if (bestIndex !== -1 && bestIndex !== this.gameState.activePokemonIndex) {
+                this._revertKeldeoWhenSwitchedOut(
+                    this.gameState.team[this.gameState.activePokemonIndex],
+                    this.gameState.team[bestIndex]
+                );
                 this.gameState.activePokemonIndex = bestIndex;
                 this.save();
                 if (this.onBattleEvent) {
@@ -5366,7 +5740,10 @@ _isRouteCompleteByCondition(routeId) {
         this.stopBattle();
         const battle = this.currentBattle;
         const tower = this.gameState.tower;
-        this._towerHpById?.set(this.gameState.team[this.gameState.activePokemonIndex], Math.max(0, battle.playerCurrentHp));
+        const activePokemonId = this.gameState.team[this.gameState.activePokemonIndex];
+        const keldeoDurationExpired = this._completeKeldeoBattle(activePokemonId);
+        if (!keldeoDurationExpired) this._recordSignatureMoveVictory(activePokemonId);
+        this._towerHpById?.set(activePokemonId, Math.max(0, battle.playerCurrentHp));
 
         tower.currentEnemyIndex++;
 
@@ -5434,7 +5811,7 @@ _isRouteCompleteByCondition(routeId) {
         if (available !== -1) {
             const best = this.gameState.settings?.autoSwitchBest
                 ? this.getBestTeamMemberForEnemy(this.currentBattle.wild) : -1;
-            const nextIndex = best >= 0 ? best : available;
+            const nextIndex = best >= 0 && !this._towerFaintedIds.has(this.gameState.team[best]) ? best : available;
             this.setActivePokemon(nextIndex);
             if (this.onBattleEvent) this.onBattleEvent('towerPokemonSwitched', {
                 faintedId, nextId: this.gameState.team[nextIndex], remaining: this.gameState.team.length - this._towerFaintedIds.size,

@@ -1342,8 +1342,8 @@ const POKEMON_FORM_DATA = {
         cornerstone: { name: '礎石面具', sprite: 'ogerpon-cornerstone', types: ['grass', 'rock'], baseStats: { hp: 80, atk: 120, def: 84, spAtk: 60, spDef: 96, speed: 110 }, unlock: 'formCatch1017', unlockText: '捕獲該物種的 6V 與閃光' },
     } },
     720: { defaultForm: 'confined', forms: {
-        confined: { name: '懲戒形態', sprite: 'hoopa', types: ['psychic', 'ghost'], baseStats: { hp: 80, atk: 110, def: 60, spAtk: 150, spDef: 130, speed: 70 } },
-        unbound: { name: '解放形態', sprite: 'hoopa-unbound', types: ['psychic', 'dark'], baseStats: { hp: 80, atk: 160, def: 60, spAtk: 170, spDef: 130, speed: 80 }, unlock: 'formCatch720', unlockText: '捕獲該物種的 6V 與閃光' },
+        confined: { name: '懲戒形態', displayName: '胡帕', sprite: 'hoopa', types: ['psychic', 'ghost'], baseStats: { hp: 80, atk: 110, def: 60, spAtk: 150, spDef: 130, speed: 70 } },
+        unbound: { name: '解放形態', displayName: '胡帕', sprite: 'hoopa-unbound', types: ['psychic', 'dark'], baseStats: { hp: 80, atk: 160, def: 60, spAtk: 170, spDef: 130, speed: 80 }, unlock: 'formCatch720', unlockText: '捕獲該物種的 6V 與閃光' },
     } },
     905: { defaultForm: 'incarnate', forms: {
         incarnate: { name: '化身形態', sprite: 'enamorus', types: ['fairy', 'flying'], baseStats: { hp: 74, atk: 115, def: 70, spAtk: 135, spDef: 80, speed: 106 } },
@@ -1484,37 +1484,38 @@ const TYPE_NAMES = {
 };
 
 // 屬性相剋表 (攻擊型別 -> 防禦型別 -> 倍率)
-// 原版免疫(0倍)改為0.25倍
+// 屬性免疫使用 0 倍；雙屬性防守時倍率相乘，免疫會保留為 0。
+const TOWER_IMMUNITY_MULTIPLIER = 0.25;
 const TYPE_CHART = {
-    normal: { rock: 0.5, ghost: 0.25, steel: 0.5 },
+    normal: { rock: 0.5, ghost: 0, steel: 0.5 },
     fire: { fire: 0.5, water: 0.5, grass: 2, ice: 2, bug: 2, rock: 0.5, dragon: 0.5, steel: 2 },
     water: { fire: 2, water: 0.5, grass: 0.5, ground: 2, rock: 2, dragon: 0.5 },
-    electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0.25, flying: 2, dragon: 0.5 },
+    electric: { water: 2, electric: 0.5, grass: 0.5, ground: 0, flying: 2, dragon: 0.5 },
     grass: { fire: 0.5, water: 2, grass: 0.5, poison: 0.5, ground: 2, flying: 0.5, bug: 0.5, rock: 2, dragon: 0.5, steel: 0.5 },
     ice: { fire: 0.5, water: 0.5, grass: 2, ice: 0.5, ground: 2, flying: 2, dragon: 2, steel: 0.5 },
-    fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0.25, dark: 2, steel: 2, fairy: 0.5 },
-    poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0.25, fairy: 2 },
-    ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0.25, bug: 0.5, rock: 2, steel: 2 },
+    fighting: { normal: 2, ice: 2, poison: 0.5, flying: 0.5, psychic: 0.5, bug: 0.5, rock: 2, ghost: 0, dark: 2, steel: 2, fairy: 0.5 },
+    poison: { grass: 2, poison: 0.5, ground: 0.5, rock: 0.5, ghost: 0.5, steel: 0, fairy: 2 },
+    ground: { fire: 2, electric: 2, grass: 0.5, poison: 2, flying: 0, bug: 0.5, rock: 2, steel: 2 },
     flying: { electric: 0.5, grass: 2, fighting: 2, bug: 2, rock: 0.5, steel: 0.5 },
-    psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0.25, steel: 0.5 },
+    psychic: { fighting: 2, poison: 2, psychic: 0.5, dark: 0, steel: 0.5 },
     bug: { fire: 0.5, grass: 2, fighting: 0.5, poison: 0.5, flying: 0.5, psychic: 2, ghost: 0.5, dark: 2, steel: 0.5, fairy: 0.5 },
     rock: { fire: 2, ice: 2, fighting: 0.5, ground: 0.5, flying: 2, bug: 2, steel: 0.5 },
-    ghost: { normal: 0.25, psychic: 2, ghost: 2, dark: 0.5 },
-    dragon: { dragon: 2, steel: 0.5, fairy: 0.25 },
+    ghost: { normal: 0, psychic: 2, ghost: 2, dark: 0.5 },
+    dragon: { dragon: 2, steel: 0.5, fairy: 0 },
     dark: { fighting: 0.5, psychic: 2, ghost: 2, dark: 0.5, fairy: 0.5 },
     steel: { fire: 0.5, water: 0.5, electric: 0.5, ice: 2, rock: 2, steel: 0.5, fairy: 2 },
     fairy: { fire: 0.5, fighting: 2, poison: 0.5, dragon: 2, dark: 2, steel: 0.5 },
 };
 
 // 計算單屬性相剋倍率（攻擊屬性 vs 防禦屬性陣列）
-function getTypeEffectiveness(attackType, defendTypes) {
+function getTypeEffectiveness(attackType, defendTypes, immunityMultiplier = 0) {
     let multiplier = 1;
     const effectiveness = TYPE_CHART[attackType];
     if (!effectiveness) return 1;
     
     for (const defendType of defendTypes) {
         if (effectiveness[defendType] !== undefined) {
-            multiplier *= effectiveness[defendType];
+            multiplier *= effectiveness[defendType] === 0 ? immunityMultiplier : effectiveness[defendType];
         }
     }
     return multiplier;
@@ -1522,14 +1523,14 @@ function getTypeEffectiveness(attackType, defendTypes) {
 
 // 計算最佳屬性相剋倍率（支援雙屬性攻擊方，取最優屬性）
 // 返回 { multiplier, isDualAttacker }
-function getBestTypeEffectiveness(attackerTypes, defenderTypes) {
+function getBestTypeEffectiveness(attackerTypes, defenderTypes, immunityMultiplier = 0) {
     if (!attackerTypes || !defenderTypes || attackerTypes.length === 0) {
         return { multiplier: 1, isDualAttacker: false };
     }
     const isDualAttacker = attackerTypes.length >= 2;
-    let best = getTypeEffectiveness(attackerTypes[0], defenderTypes);
+    let best = getTypeEffectiveness(attackerTypes[0], defenderTypes, immunityMultiplier);
     for (let i = 1; i < attackerTypes.length; i++) {
-        const eff = getTypeEffectiveness(attackerTypes[i], defenderTypes);
+        const eff = getTypeEffectiveness(attackerTypes[i], defenderTypes, immunityMultiplier);
         if (eff > best) best = eff;
     }
     // 雙屬性攻擊方效果拔群時倍率×0.75

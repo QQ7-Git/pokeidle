@@ -964,6 +964,14 @@ body {
     transition: width .25s ease;
 }
 
+.signature-energy .terapagos-energy-track i {
+    background: linear-gradient(90deg, #7b5cff, #ff68c5, #ffd166);
+}
+
+.signature-energy strong {
+    color: #dcadff;
+}
+
 .terapagos-energy strong {
     min-width: 20px;
     color: #ffd75e;
@@ -979,6 +987,17 @@ body {
     gap: 5px;
     font-size: 9px;
     order: 4;
+}
+
+.log-signature-attack .log-message {
+    background: linear-gradient(90deg, #55f3ff, #c49aff 45%, #ff87d0 75%, #ffe27a);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    font-weight: 800;
+    font-size: 12px;
+    filter: drop-shadow(0 0 3px rgba(102, 224, 255, .38));
 }
 
 .pokemon-battle-info .terapagos-battle-energy .terapagos-energy-track {
@@ -1845,6 +1864,7 @@ body {
     font-size: 15px;
     margin-bottom: 12px;
 }
+
 
 .setting-toggle {
     display: flex;
