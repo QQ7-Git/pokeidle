@@ -922,7 +922,105 @@ class GameCore {
                 Object.keys(TYPE_NAMES)[0] || 'normal')
             : this.getPokemonTypes(id)[0] || 'normal';
         const genesectDriveTypes = { normal: 'normal', shock: 'electric', burn: 'fire', chill: 'ice', douse: 'water' };
+        const extraSignatureGroups = [
+            [[25,26,172], '伏特攻擊', 'Volt Tackle', 'electric'], [[57], '憤怒之拳', 'Rage Fist', 'ghost'],
+            [[206,982], '強力鑽', 'Hyper Drill', 'normal'], [[211,904], '毒千針', 'Barb Barrage', 'poison'],
+            [[234,899], '屏障猛攻', 'Psyshield Bash', 'psychic'], [[237], '三連踢', 'Triple Kick', 'fighting'],
+            [[464], '岩石炮', 'Rock Wrecker', 'rock'], [[486], '捏碎', 'Crush Grip', 'normal'],
+            [[599,600,601], '齒輪飛盤', 'Gear Grind', 'steel'], [[626], '爆炸頭突擊', 'Head Charge', 'normal'],
+            [[701], '飛身重壓', 'Flying Press', 'fighting'], [[758], '火焰鞭', 'Fire Lash', 'fire'],
+            [[763], '熱帶踢', 'Trop Kick', 'grass'], [[781], '擲錨', 'Anchor Shot', 'steel'],
+            [[833,834], '緊咬不放', 'Jaw Lock', 'dark'], [[841], '萬有引力', 'Grav Apple', 'grass'],
+            [[860,861], '假跪真撞', 'False Surrender', 'dark'], [[859,860,861], '密語', 'Confide', 'normal'],
+            [[871], '麻麻刺刺', 'Zing Zap', 'electric'], [[877], '氣場輪', 'Aura Wheel', form === 'hangry' ? 'dark' : 'electric'],
+            [[900], '岩斧', 'Stone Axe', 'rock'], [[903], '剋命爪', 'Dire Claw', 'poison'],
+            [[923], '電光雙擊', 'Double Shock', 'electric'], [[924,925], '鼠數兒', 'Population Bomb', 'normal'],
+            [[959], '巨力錘', 'Gigaton Hammer', 'steel'], [[961], '三連鑽', 'Triple Dive', 'water'],
+            [[964], '噴射拳', 'Jet Punch', 'water'], [[965,966], '疾速轉輪', 'Spin Out', 'steel'],
+            [[977], '上菜', 'Order Up', 'dragon'], [[990], '鐵滾輪', 'Steel Roller', 'steel'],
+            [[998], '巨劍突擊', 'Glaive Rush', 'dragon'], [[1010], '精神劍', 'Psyblade', 'psychic'],
+            [[1022], '強刃攻擊', 'Mighty Cleave', 'rock'], [[201], '覺醒力量', 'Hidden Power', 'normal'],
+            [[203,981], '雙光束', 'Twin Beam', 'psychic'], [[441], '喋喋不休', 'Chatter', 'flying'],
+            [[485], '熔岩風暴', 'Magma Storm', 'fire'], [[617,658], '飛水手裡劍', 'Water Shuriken', 'water'],
+            [[637], '火之舞', 'Fiery Dance', 'fire'], [[741], '覺醒之舞', 'Revelation Dance', this.getPokemonTypes(id)[0]],
+            [[776], '陷阱甲殼', 'Shell Trap', 'fire'], [[784], '鱗片噪音', 'Clanging Scales', 'dragon'],
+            [[806], '驚爆大頭', 'Mind Blown', 'fire'], [[842], '蘋果酸', 'Apple Acid', 'grass'],
+            [[849], '破音', 'Overdrive', 'electric'], [[894], '雷電囚籠', 'Thunder Cage', 'electric'],
+            [[895], '巨龍威能', 'Dragon Energy', 'dragon'], [[928,929,930], '大地波動', 'Terrain Pulse', 'normal'],
+            [[956], '琉光衝激', 'Lumina Crash', 'psychic'], [[1009], '水蒸氣', 'Hydro Steam', 'water'],
+            [[1011,1019], '糖漿炸彈', 'Syrup Bomb', 'grass'], [[1013], '刷刷茶炮', 'Matcha Gotcha', 'grass'],
+            [[1018], '電光束', 'Electro Shot', 'electric'], [[1021], '迅雷', 'Thunderclap', 'electric'],
+            [[1023], '迅子利刃', 'Tachyon Cutter', 'steel'], [[64,65], '折彎湯匙', 'Kinesis', 'psychic'],
+            [[113,242,440], '生蛋', 'Soft-Boiled', 'normal'], [[124], '惡魔之吻', 'Lovely Kiss', 'normal'],
+            [[137,233,474], '紋理', 'Conversion', 'normal'], [[167,168], '毒絲', 'Toxic Thread', 'poison'],
+            [[241,672,673], '喝牛奶', 'Milk Drink', 'normal'], [[416], '防禦指令', 'Defend Order', 'bug'],
+            [[488], '新月舞', 'Lunar Dance', 'psychic'], [[489], '勇氣填充', 'Take Heart', 'psychic'],
+            [[490], '心靈互換', 'Heart Swap', 'psychic'], [[681], '王者盾牌', "King's Shield", 'steel'],
+            [[695], '輸電', 'Electrify', 'electric'], [[704], '閉關', 'Shelter', 'steel'],
+            [[707], '妖精之鎖', 'Fairy Lock', 'fairy'], [[708,709], '森林詛咒', "Forest's Curse", 'grass'],
+            [[748], '碉堡', 'Baneful Bunker', 'poison'], [[764], '花療', 'Floral Healing', 'fairy'],
+            [[769,770], '集沙', 'Shore Up', 'ground'], [[771], '淨化', 'Purify', 'poison'],
+            [[839], '瀝青射擊', 'Tar Shot', 'rock'], [[853], '蛸固', 'Octolock', 'fighting'],
+            [[855], '茶會', 'Teatime', 'normal'], [[858], '魔法粉', 'Magic Powder', 'psychic'],
+            [[869], '裝飾', 'Decorate', 'fairy'], [[870], '背水一戰', 'No Retreat', 'fighting'],
+            [[952], '辣椒精華', 'Spicy Extract', 'grass'], [[954], '速度互換', 'Speed Swap', 'psychic'],
+            [[976], '甩肉', 'Fillet Away', 'normal'], [[1020], '火焰守護', 'Burning Bulwark', 'fire'],
+        ];
         const moves = {
+            ...Object.fromEntries(extraSignatureGroups.flatMap(([ids, name, englishName, type]) => ids.map(id => [id, []]))),
+            128: {
+                normal: [{ name: '怒牛', englishName: 'Raging Bull', type: 'normal' }],
+                combat: [{ name: '怒牛', englishName: 'Raging Bull', type: 'fighting' }],
+                blaze: [{ name: '怒牛', englishName: 'Raging Bull', type: 'fire' }],
+                aqua: [{ name: '怒牛', englishName: 'Raging Bull', type: 'water' }],
+            },
+            80: { galar: [{ name: '臂貝武器', englishName: 'Shell Side Arm', type: 'poison' }] },
+            199: { galar: [{ name: '詭異咒語', englishName: 'Eerie Spell', type: 'psychic' }] },
+            110: { galar: [{ name: '神奇蒸汽', englishName: 'Strange Steam', type: 'fairy' }] },
+            144: { galar: [{ name: '冰冷視線', englishName: 'Freezing Glare', type: 'psychic' }] },
+            145: { galar: [{ name: '雷鳴蹴擊', englishName: 'Thunderous Kick', type: 'fighting' }] },
+            146: { galar: [{ name: '怒火中燒', englishName: 'Fiery Wrath', type: 'dark' }] },
+            618: { galar: [{ name: '捕獸夾', englishName: 'Snap Trap', type: 'grass' }] },
+            102: [{ name: '投球', englishName: 'Barrage', type: 'normal' }],
+            103: [{ name: '投球', englishName: 'Barrage', type: 'normal' }],
+            104: [{ name: '骨頭回力鏢', englishName: 'Bonemerang', type: 'ground' }],
+            105: {
+                normal: [{ name: '骨頭回力鏢', englishName: 'Bonemerang', type: 'ground' }],
+                alola: [{ name: '暗影之骨', englishName: 'Shadow Bone', type: 'ghost' }],
+            },
+            235: [{ name: '寫生', englishName: 'Sketch', type: 'normal' }],
+            710: [{ name: '萬聖夜', englishName: 'Trick-or-Treat', type: 'ghost' }],
+            711: [{ name: '萬聖夜', englishName: 'Trick-or-Treat', type: 'ghost' }],
+            724: [{ name: '縫影', englishName: 'Spirit Shackle', type: 'ghost' }],
+            727: [{ name: 'DD金勾臂', englishName: 'Darkest Lariat', type: 'dark' }],
+            730: [{ name: '泡影的詠歎調', englishName: 'Sparkling Aria', type: 'water' }],
+            733: [{ name: '鳥嘴加農炮', englishName: 'Beak Blast', type: 'flying' }],
+            745: [{ name: '衝岩', englishName: 'Accelerock', type: 'rock' }],
+            765: [{ name: '號令', englishName: 'Instruct', type: 'psychic' }],
+            812: [{ name: '鼓擊', englishName: 'Drum Beating', type: 'grass' }],
+            815: [{ name: '火焰球', englishName: 'Pyro Ball', type: 'fire' }],
+            818: [{ name: '狙擊', englishName: 'Snipe Shot', type: 'water' }],
+            819: [{ name: '大快朵頤', englishName: 'Stuff Cheeks', type: 'normal' }],
+            820: [{ name: '大快朵頤', englishName: 'Stuff Cheeks', type: 'normal' }],
+            862: [{ name: '攔堵', englishName: 'Obstruct', type: 'dark' }],
+            865: [{ name: '流星突擊', englishName: 'Meteor Assault', type: 'fighting' }],
+            880: [{ name: '電喙', englishName: 'Bolt Beak', type: 'electric' }],
+            881: [{ name: '電喙', englishName: 'Bolt Beak', type: 'electric' }],
+            882: [{ name: '鰓咬', englishName: 'Fishious Rend', type: 'water' }],
+            883: [{ name: '鰓咬', englishName: 'Fishious Rend', type: 'water' }],
+            887: [{ name: '龍箭', englishName: 'Dragon Darts', type: 'dragon' }],
+            908: [{ name: '千變萬花', englishName: 'Flower Trick', type: 'grass' }],
+            911: [{ name: '閃焰高歌', englishName: 'Torch Song', type: 'fire' }],
+            914: [{ name: '流水旋舞', englishName: 'Aqua Step', type: 'water' }],
+            918: [{ name: '線阱', englishName: 'Silk Trap', type: 'bug' }],
+            933: [{ name: '鹽醃', englishName: 'Salt Cure', type: 'rock' }],
+            934: [{ name: '鹽醃', englishName: 'Salt Cure', type: 'rock' }],
+            936: [{ name: '鎧農炮', englishName: 'Armor Cannon', type: 'fire' }],
+            937: [{ name: '悔念劍', englishName: 'Bitter Blade', type: 'fire' }],
+            945: [{ name: '描繪', englishName: 'Doodle', type: 'normal' }],
+            979: [{ name: '憤怒之拳', englishName: 'Rage Fist', type: 'ghost' }],
+            983: [{ name: '仆斬', englishName: 'Kowtow Cleave', type: 'dark' }],
+            1000: [{ name: '淘金潮', englishName: 'Make It Rain', type: 'steel' }],
             646: {
                 normal: [
                     { name: '冰封世界', englishName: 'Glaciate', type: 'ice' },
@@ -937,7 +1035,7 @@ class GameCore {
                 ],
             },
             800: {
-                normal: [{ name: '光子噴湧', englishName: 'Photon Geyser', type: 'psychic' }],
+                normal: [{ name: '光子噴湧', englishName: 'Photon Geyser', type: 'psychic' }, { name: '稜鏡鐳射', englishName: 'Prismatic Laser', type: 'psychic' }],
                 'dusk-mane': [
                     { name: '流星閃衝', englishName: 'Sunsteel Strike', type: 'steel' },
                     { name: '光子噴湧', englishName: 'Photon Geyser', type: 'psychic' },
@@ -957,10 +1055,7 @@ class GameCore {
                     { name: '千箭齊發', englishName: 'Thousand Arrows', type: 'ground' },
                     { name: '千波激盪', englishName: 'Thousand Waves', type: 'ground' },
                 ],
-                '50': [
-                    { name: '千箭齊發', englishName: 'Thousand Arrows', type: 'ground' },
-                    { name: '千波激盪', englishName: 'Thousand Waves', type: 'ground' },
-                ],
+                '50': [{ name: '大地神力', englishName: "Land's Wrath", type: 'ground' }],
                 complete: [{ name: '核心懲罰者', englishName: 'Core Enforcer', type: 'dragon' }],
             },
             720: {
@@ -987,7 +1082,7 @@ class GameCore {
             802: [{ name: '暗影偷盜', englishName: 'Spectral Thief', type: 'ghost' }],
             807: [{ name: '等離子閃電拳', englishName: 'Plasma Fists', type: 'electric' }],
             809: [{ name: '鋼拳雙擊', englishName: 'Double Iron Bash', type: 'steel', power: 100, hitCount: 2 }],
-            890: [{ name: '極巨炮', englishName: 'Dynamax Cannon', type: 'dragon' }],
+            890: [{ name: '極巨炮', englishName: 'Dynamax Cannon', type: 'dragon' }, { name: '無極光束', englishName: 'Eternabeam', type: 'dragon' }],
             893: [{ name: '叢林治癒', englishName: 'Jungle Healing', type: 'grass' }],
             1007: [{ name: '全開猛撞', englishName: 'Collision Course', type: 'fighting' }],
             1008: [{ name: '閃電猛衝', englishName: 'Electro Drift', type: 'electric' }],
@@ -998,6 +1093,7 @@ class GameCore {
             1025: [{ name: '惡毒鎖鏈', englishName: 'Malignant Chain', type: 'poison' }],
             494: [{ name: 'V熱焰', englishName: 'V-create', type: 'fire' }],
             649: [{ name: '高科技光炮', englishName: 'Techno Blast', type: genesectDriveTypes[form] || 'normal' }],
+            773: [{ name: '屬性攻擊', englishName: 'Multi-Attack', type: this.getPokemonTypes(id)[0] || 'normal' }],
             643: [{ name: '青焰', englishName: 'Blue Flare', type: 'fire' }],
             644: [{ name: '雷擊', englishName: 'Bolt Strike', type: 'electric' }],
             721: [{ name: '蒸汽爆炸', englishName: 'Steam Eruption', type: 'water' }],
@@ -1009,9 +1105,9 @@ class GameCore {
             250: [{ name: '神聖之火', englishName: 'Sacred Fire', type: 'fire' }],
             380: [{ name: '薄霧球', englishName: 'Mist Ball', type: 'psychic' }],
             381: [{ name: '潔淨光芒', englishName: 'Luster Purge', type: 'psychic' }],
-            480: [{ name: '神通力', englishName: 'Extrasensory', type: 'psychic' }],
-            481: [{ name: '神通力', englishName: 'Extrasensory', type: 'psychic' }],
-            482: [{ name: '神通力', englishName: 'Extrasensory', type: 'psychic' }],
+            480: [{ name: '神秘之力', englishName: 'Mystical Power', type: 'psychic' }],
+            481: [{ name: '神秘之力', englishName: 'Mystical Power', type: 'psychic' }],
+            482: [{ name: '神秘之力', englishName: 'Mystical Power', type: 'psychic' }],
             483: [{ name: '時光咆哮', englishName: 'Roar of Time', type: 'dragon' }],
             484: [{ name: '亞空裂斬', englishName: 'Spacial Rend', type: 'dragon' }],
             487: [{ name: '暗影潛襲', englishName: 'Shadow Force', type: 'ghost' }],
@@ -1042,6 +1138,9 @@ class GameCore {
                 stellar: [{ name: '晶光星群', englishName: 'Tera Starstorm', type: 'normal' }],
             },
         };
+        for (const [ids, name, englishName, type] of extraSignatureGroups) {
+            for (const extraId of ids) moves[extraId].push({ name, englishName, type });
+        }
         if (id === 646 && !this.isKyuremFused() && form !== 'normal') return [];
         if (id === 800 && !this.isNecrozmaFused() && !['normal', 'ultra'].includes(form)) return [];
         if (id === 898 && !this.isCalyrexFused()) return [];
@@ -1364,6 +1463,8 @@ class GameCore {
         this.gameState.formUnlocks = this.gameState.formUnlocks || {};
         this.gameState.formCatchProgress = this.gameState.formCatchProgress || {};
         if (this.isRegionCompleted('galar')) this.gameState.formUnlocks.galarDex = true;
+        if (this.isRegionCompleted('alola')) this.gameState.formUnlocks.alolaDex = true;
+        if (this.isRegionCompleted('paldea')) this.gameState.formUnlocks.paldeaDex = true;
 
         const ivStats = ['hp', 'atk', 'def', 'spAtk', 'spDef', 'speed'];
         for (const [idText, definition] of Object.entries(POKEMON_FORM_DATA)) {
@@ -2029,6 +2130,11 @@ class GameCore {
                 best = candidate;
                 bestDamage = expectedDamage;
             }
+        }
+        if ([800, 890].includes(Number(pokemonId)) && signatureMovesReady && best.isSignatureMove) {
+            const equalMoves = this.getSignatureMoves(pokemonId, wildTypes)
+                .filter(move => move.type === best.type && move.power === best.power && move.hitCount === best.hitCount);
+            if (equalMoves.length === 2) best = equalMoves[Math.random() < 0.5 ? 0 : 1];
         }
         if (Number(pokemonId) === 718 && signatureMovesReady &&
             ['Thousand Arrows', 'Thousand Waves'].includes(best.englishName)) {

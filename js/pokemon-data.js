@@ -292,7 +292,7 @@ const POKEMON_DATA = {
     281: { id: 281, name: '奇魯莉安', types: ['psychic', 'fairy'], baseStats: { hp: 38, atk: 35, def: 35, spAtk: 65, spDef: 55, speed: 50 }, expGroup: 'fast', evolvesTo: [{ id: 282, level: 30 }, { id: 475, level: 35 }] },
     282: { id: 282, name: '沙奈朵', types: ['psychic', 'fairy'], baseStats: { hp: 68, atk: 65, def: 65, spAtk: 125, spDef: 115, speed: 80 }, expGroup: 'fast' },
     283: { id: 283, name: '溜溜糖球', types: ['bug', 'water'], baseStats: { hp: 40, atk: 30, def: 32, spAtk: 50, spDef: 52, speed: 65 }, expGroup: 'medium', evolvesTo: { id: 284, level: 22 } },
-    284: { id: 284, name: '雨翅蛾', types: ['bug', 'water'], baseStats: { hp: 70, atk: 60, def: 62, spAtk: 100, spDef: 82, speed: 80 }, expGroup: 'medium' },
+    284: { id: 284, name: '雨翅蛾', types: ['bug', 'flying'], baseStats: { hp: 70, atk: 60, def: 62, spAtk: 100, spDef: 82, speed: 80 }, expGroup: 'medium' },
     285: { id: 285, name: '蘑蘑菇', types: ['grass'], baseStats: { hp: 60, atk: 40, def: 60, spAtk: 40, spDef: 60, speed: 35 }, expGroup: 'fast', evolvesTo: { id: 286, level: 23 } },
     286: { id: 286, name: '斗笠菇', types: ['grass', 'fighting'], baseStats: { hp: 60, atk: 130, def: 80, spAtk: 60, spDef: 60, speed: 70 }, expGroup: 'fast' },
     287: { id: 287, name: '懶人獺', types: ['normal'], baseStats: { hp: 60, atk: 60, def: 60, spAtk: 35, spDef: 35, speed: 30 }, expGroup: 'slow', evolvesTo: { id: 288, level: 18 } },
@@ -560,7 +560,7 @@ const POKEMON_DATA = {
     527: { id: 527, name: '滾滾蝙蝠', types: ['psychic', 'flying'], baseStats: { hp: 65, atk: 45, def: 43, spAtk: 55, spDef: 43, speed: 72 }, expGroup: 'medium', evolvesTo: { id: 528, level: 32 } },
     528: { id: 528, name: '心蝙蝠', types: ['psychic', 'flying'], baseStats: { hp: 67, atk: 57, def: 55, spAtk: 77, spDef: 55, speed: 114 }, expGroup: 'medium' },
     // 螺釘地鼠系列
-    529: { id: 529, name: '螺釘地鼠', types: ['ground', 'steel'], baseStats: { hp: 60, atk: 85, def: 40, spAtk: 30, spDef: 45, speed: 68 }, expGroup: 'medium', evolvesTo: { id: 530, level: 31 } },
+    529: { id: 529, name: '螺釘地鼠', types: ['ground'], baseStats: { hp: 60, atk: 85, def: 40, spAtk: 30, spDef: 45, speed: 68 }, expGroup: 'medium', evolvesTo: { id: 530, level: 31 } },
     530: { id: 530, name: '龍頭地鼠', types: ['ground', 'steel'], baseStats: { hp: 110, atk: 135, def: 60, spAtk: 50, spDef: 65, speed: 88 }, expGroup: 'medium' },
     // 差不多娃娃
     531: { id: 531, name: '差不多娃娃', types: ['normal'], baseStats: { hp: 103, atk: 60, def: 86, spAtk: 60, spDef: 86, speed: 50 }, expGroup: 'fast' },
@@ -1046,14 +1046,14 @@ const POKEMON_DATA = {
     918: { id: 918, name: '操陷蛛', types: ['bug'], baseStats: { hp: 60, atk: 79, def: 92, spAtk: 52, spDef: 86, speed: 35 }, expGroup: 'fast' },
     919: { id: 919, name: '豆蟋蟀', types: ['bug'], baseStats: { hp: 33, atk: 46, def: 40, spAtk: 21, spDef: 25, speed: 45 }, expGroup: 'medium', evolvesTo: { id: 920, level: 24 } },
     920: { id: 920, name: '烈腿蝗', types: ['bug', 'dark'], baseStats: { hp: 71, atk: 102, def: 78, spAtk: 52, spDef: 55, speed: 92 }, expGroup: 'medium' },
-    921: { id: 921, name: '布撥', types: ['bug'], baseStats: { hp: 40, atk: 20, def: 25, spAtk: 25, spDef: 45, speed: 35 }, expGroup: 'fast', evolvesTo: { id: 922, level: 8 } },
-    922: { id: 922, name: '布土撥', types: ['bug'], baseStats: { hp: 45, atk: 20, def: 30, spAtk: 25, spDef: 50, speed: 35 }, expGroup: 'fast', evolvesTo: { id: 923, level: 21 } },
-    923: { id: 923, name: '巴布土撥', types: ['bug', 'ground'], baseStats: { hp: 71, atk: 102, def: 78, spAtk: 52, spDef: 55, speed: 92 }, expGroup: 'fast' },
+    921: { id: 921, name: '布撥', types: ['electric'], baseStats: { hp: 40, atk: 20, def: 25, spAtk: 25, spDef: 45, speed: 35 }, expGroup: 'fast', evolvesTo: { id: 922, level: 8 } },
+    922: { id: 922, name: '布土撥', types: ['electric', 'fighting'], baseStats: { hp: 45, atk: 20, def: 30, spAtk: 25, spDef: 50, speed: 35 }, expGroup: 'fast', evolvesTo: { id: 923, level: 21 } },
+    923: { id: 923, name: '巴布土撥', types: ['electric', 'fighting'], baseStats: { hp: 71, atk: 102, def: 78, spAtk: 52, spDef: 55, speed: 92 }, expGroup: 'fast' },
     924: { id: 924, name: '一對鼠', types: ['normal'], baseStats: { hp: 50, atk: 50, def: 45, spAtk: 40, spDef: 45, speed: 75 }, expGroup: 'fast', evolvesTo: { id: 925, level: 25 } },
     925: { id: 925, name: '一家鼠', types: ['normal'], baseStats: { hp: 74, atk: 75, def: 70, spAtk: 65, spDef: 75, speed: 111 }, expGroup: 'fast' },
     926: { id: 926, name: '狗仔包', types: ['fairy'], baseStats: { hp: 37, atk: 55, def: 70, spAtk: 30, spDef: 55, speed: 65 }, expGroup: 'mediumSlow', evolvesTo: { id: 927, level: 26 } },
     927: { id: 927, name: '麻花犬', types: ['fairy'], baseStats: { hp: 57, atk: 80, def: 115, spAtk: 50, spDef: 90, speed: 28 }, expGroup: 'mediumSlow' },
-    928: { id: 928, name: '迷你芙', types: ['fairy'], baseStats: { hp: 30, atk: 25, def: 35, spAtk: 45, spDef: 50, speed: 20 }, expGroup: 'mediumSlow', evolvesTo: { id: 929, level: 25 } },
+    928: { id: 928, name: '迷你芙', types: ['grass', 'normal'], baseStats: { hp: 30, atk: 25, def: 35, spAtk: 45, spDef: 50, speed: 20 }, expGroup: 'mediumSlow', evolvesTo: { id: 929, level: 25 } },
     929: { id: 929, name: '奧利紐', types: ['grass', 'normal'], baseStats: { hp: 41, atk: 36, def: 45, spAtk: 41, spDef: 55, speed: 39 }, expGroup: 'fast', evolvesTo: { id: 930, level: 25 } },
     930: { id: 930, name: '奧利瓦', types: ['grass', 'normal'], baseStats: { hp: 78, atk: 69, def: 90, spAtk: 125, spDef: 109, speed: 39 }, expGroup: 'fast' },
     931: { id: 931, name: '怒鸚哥', types: ['normal', 'flying'], baseStats: { hp: 82, atk: 115, def: 70, spAtk: 65, spDef: 55, speed: 92 }, expGroup: 'mediumSlow' },
@@ -1067,23 +1067,23 @@ const POKEMON_DATA = {
     939: { id: 939, name: '電肚蛙', types: ['electric'], baseStats: { hp: 109, atk: 64, def: 91, spAtk: 103, spDef: 83, speed: 45 }, expGroup: 'medium' },
     940: { id: 940, name: '電海燕', types: ['electric', 'flying'], baseStats: { hp: 70, atk: 70, def: 60, spAtk: 105, spDef: 60, speed: 125 }, expGroup: 'medium', evolvesTo: { id: 941, level: 25 } },
     941: { id: 941, name: '大電海燕', types: ['electric', 'flying'], baseStats: { hp: 70, atk: 70, def: 60, spAtk: 105, spDef: 60, speed: 125 }, expGroup: 'medium' },
-    942: { id: 942, name: '偶叫獒', types: ['fighting'], baseStats: { hp: 60, atk: 78, def: 60, spAtk: 40, spDef: 51, speed: 51 }, expGroup: 'medium', evolvesTo: { id: 943, level: 29 } },
-    943: { id: 943, name: '獒教父', types: ['fighting', 'dark'], baseStats: { hp: 80, atk: 120, def: 90, spAtk: 60, spDef: 70, speed: 95 }, expGroup: 'medium' },
-    944: { id: 944, name: '滋汁鼴', types: ['poison', 'ground'], baseStats: { hp: 40, atk: 29, def: 25, spAtk: 43, spDef: 37, speed: 46 }, expGroup: 'medium', evolvesTo: { id: 945, level: 28 } },
+    942: { id: 942, name: '偶叫獒', types: ['dark'], baseStats: { hp: 60, atk: 78, def: 60, spAtk: 40, spDef: 51, speed: 51 }, expGroup: 'medium', evolvesTo: { id: 943, level: 29 } },
+    943: { id: 943, name: '獒教父', types: ['dark'], baseStats: { hp: 80, atk: 120, def: 90, spAtk: 60, spDef: 70, speed: 95 }, expGroup: 'medium' },
+    944: { id: 944, name: '滋汁鼴', types: ['poison', 'normal'], baseStats: { hp: 40, atk: 29, def: 25, spAtk: 43, spDef: 37, speed: 46 }, expGroup: 'medium', evolvesTo: { id: 945, level: 28 } },
     945: { id: 945, name: '塗標客', types: ['poison', 'normal'], baseStats: { hp: 80, atk: 65, def: 65, spAtk: 120, spDef: 75, speed: 110 }, expGroup: 'medium' },
-    946: { id: 946, name: '納噬草', types: ['grass'], baseStats: { hp: 74, atk: 100, def: 72, spAtk: 104, spDef: 72, speed: 46 }, expGroup: 'slow' },
-    947: { id: 947, name: '怖納噬草', types: ['grass'], baseStats: { hp: 74, atk: 100, def: 72, spAtk: 104, spDef: 72, speed: 46 }, expGroup: 'slow' },
+    946: { id: 946, name: '納噬草', types: ['grass', 'ghost'], baseStats: { hp: 74, atk: 100, def: 72, spAtk: 104, spDef: 72, speed: 46 }, expGroup: 'slow' },
+    947: { id: 947, name: '怖納噬草', types: ['grass', 'ghost'], baseStats: { hp: 74, atk: 100, def: 72, spAtk: 104, spDef: 72, speed: 46 }, expGroup: 'slow' },
     948: { id: 948, name: '原野水母', types: ['ground', 'grass'], baseStats: { hp: 40, atk: 40, def: 35, spAtk: 50, spDef: 100, speed: 70 }, expGroup: 'medium', evolvesTo: { id: 949, level: 30 } },
     949: { id: 949, name: '陸地水母', types: ['ground', 'grass'], baseStats: { hp: 80, atk: 70, def: 65, spAtk: 80, spDef: 120, speed: 100 }, expGroup: 'medium' },
     950: { id: 950, name: '毛崖蟹', types: ['rock'], baseStats: { hp: 70, atk: 102, def: 130, spAtk: 38, spDef: 82, speed: 68 }, expGroup: 'medium' },
-    951: { id: 951, name: '熱辣娃', types: ['grass', 'fire'], baseStats: { hp: 65, atk: 108, def: 65, spAtk: 108, spDef: 65, speed: 75 }, expGroup: 'medium' },
+    951: { id: 951, name: '熱辣娃', types: ['grass'], baseStats: { hp: 65, atk: 108, def: 65, spAtk: 108, spDef: 65, speed: 75 }, expGroup: 'medium' },
     952: { id: 952, name: '狠辣椒', types: ['grass', 'fire'], baseStats: { hp: 65, atk: 108, def: 65, spAtk: 108, spDef: 65, speed: 75 }, expGroup: 'medium' },
     953: { id: 953, name: '蟲滾泥', types: ['bug'], baseStats: { hp: 55, atk: 45, def: 59, spAtk: 35, spDef: 85, speed: 15 }, expGroup: 'medium', evolvesTo: { id: 954, level: 28 } },
-    954: { id: 954, name: '蟲甲聖', types: ['bug', 'ground'], baseStats: { hp: 70, atk: 105, def: 75, spAtk: 50, spDef: 100, speed: 75 }, expGroup: 'medium' },
+    954: { id: 954, name: '蟲甲聖', types: ['bug', 'psychic'], baseStats: { hp: 70, atk: 105, def: 75, spAtk: 50, spDef: 100, speed: 75 }, expGroup: 'medium' },
     955: { id: 955, name: '飄飄雛', types: ['psychic'], baseStats: { hp: 35, atk: 25, def: 30, spAtk: 70, spDef: 60, speed: 65 }, expGroup: 'mediumSlow', evolvesTo: { id: 956, level: 35 } },
-    956: { id: 956, name: '超能艷鴕', types: ['psychic', 'flying'], baseStats: { hp: 95, atk: 60, def: 82, spAtk: 120, spDef: 81, speed: 52 }, expGroup: 'mediumSlow' },
-    957: { id: 957, name: '小鍛匠', types: ['fire', 'steel'], baseStats: { hp: 55, atk: 80, def: 50, spAtk: 35, spDef: 50, speed: 35 }, expGroup: 'medium', evolvesTo: { id: 958, level: 24 } },
-    958: { id: 958, name: '巧鍛匠', types: ['fire', 'steel'], baseStats: { hp: 65, atk: 100, def: 72, spAtk: 45, spDef: 66, speed: 43 }, expGroup: 'medium', evolvesTo: { id: 959, level: 38 } },
+    956: { id: 956, name: '超能艷鴕', types: ['psychic'], baseStats: { hp: 95, atk: 60, def: 82, spAtk: 120, spDef: 81, speed: 52 }, expGroup: 'mediumSlow' },
+    957: { id: 957, name: '小鍛匠', types: ['fairy', 'steel'], baseStats: { hp: 55, atk: 80, def: 50, spAtk: 35, spDef: 50, speed: 35 }, expGroup: 'medium', evolvesTo: { id: 958, level: 24 } },
+    958: { id: 958, name: '巧鍛匠', types: ['fairy', 'steel'], baseStats: { hp: 65, atk: 100, def: 72, spAtk: 45, spDef: 66, speed: 43 }, expGroup: 'medium', evolvesTo: { id: 959, level: 38 } },
     959: { id: 959, name: '巨鍛匠', types: ['fairy', 'steel'], baseStats: { hp: 90, atk: 130, def: 120, spAtk: 55, spDef: 80, speed: 40 }, expGroup: 'medium' },
     960: { id: 960, name: '海地鼠', types: ['water'], baseStats: { hp: 10, atk: 55, def: 25, spAtk: 35, spDef: 45, speed: 95 }, expGroup: 'medium', evolvesTo: { id: 961, level: 26 } },
     961: { id: 961, name: '三海地鼠', types: ['water'], baseStats: { hp: 35, atk: 100, def: 50, spAtk: 50, spDef: 70, speed: 120 }, expGroup: 'medium' },
@@ -1206,6 +1206,22 @@ const POKEMON_DATA = {
 
 // 可由玩家直接選擇的型態；表單資料統一供戰鬥、圖鑑與型態視窗使用。
 const POKEMON_FORM_DATA = {
+    ...Object.fromEntries([
+        [52, 'steel', [50,65,55,40,40,40]], [79, 'psychic', [90,65,65,40,40,15]],
+        [80, 'poison,psychic', [95,100,95,100,70,30]], [199, 'poison,psychic', [95,65,80,110,110,30]],
+        [110, 'poison,fairy', [65,90,120,85,70,60]], [122, 'ice,psychic', [50,65,65,90,90,100]],
+        [144, 'psychic,flying', [90,85,85,125,100,95]], [145, 'fighting,flying', [90,125,90,85,90,100]],
+        [146, 'dark,flying', [90,85,90,100,125,90]], [263, 'dark,normal', [38,30,41,30,41,60]],
+        [264, 'dark,normal', [78,70,61,50,61,100]], [83, 'fighting', [52,95,55,58,62,55]],
+        [77, 'psychic', [50,85,55,65,65,90]], [78, 'psychic,fairy', [65,100,70,80,80,105]],
+        [222, 'ghost', [60,55,100,65,100,30]], [554, 'ice', [70,90,45,15,45,50]],
+        [618, 'ground,steel', [109,81,99,66,84,32]], [562, 'ground,ghost', [38,55,85,30,65,30]],
+    ].map(([id, types, stats]) => [id, { defaultForm: 'normal', forms: {
+        normal: { name: '普通形態', sprite: String(id), types: POKEMON_DATA[id].types, baseStats: POKEMON_DATA[id].baseStats },
+        galar: { name: '伽勒爾形態', sprite: `galar-${id}`, types: types.split(','),
+            baseStats: Object.fromEntries(['hp','atk','def','spAtk','spDef','speed'].map((key, i) => [key, stats[i]])),
+            unlock: 'galarDex', unlockText: '完成伽勒爾圖鑑' },
+    } }])),
     681: { defaultForm: 'shield', forms: {
         shield: { name: '盾牌形態', sprite: 'aegislash', types: ['steel', 'ghost'], baseStats: { hp: 60, atk: 50, def: 140, spAtk: 50, spDef: 140, speed: 60 } },
         blade: { name: '刀劍形態', sprite: 'aegislash-blade', types: ['steel', 'ghost'], baseStats: { hp: 60, atk: 140, def: 50, spAtk: 140, spDef: 50, speed: 60 } },
@@ -1291,6 +1307,17 @@ const POKEMON_FORM_DATA = {
         ordinary: { name: '平常形態', sprite: 'keldeo', types: ['water', 'fighting'], baseStats: { hp: 91, atk: 72, def: 90, spAtk: 129, spDef: 90, speed: 108 } },
         resolute: { name: '覺悟形態', sprite: 'keldeo-resolute', types: ['water', 'fighting'], baseStats: { hp: 91, atk: 72, def: 90, spAtk: 129, spDef: 90, speed: 108 } },
     } },
+    773: { defaultForm: 'normal', forms: Object.fromEntries([
+        ['normal', '普通型態'], ['fire', '火焰記憶碟'], ['water', '清水記憶碟'],
+        ['electric', '電子記憶碟'], ['grass', '青草記憶碟'], ['ice', '冰雪記憶碟'],
+        ['fighting', '戰鬥記憶碟'], ['poison', '毒記憶碟'], ['ground', '大地記憶碟'],
+        ['flying', '飛翔記憶碟'], ['psychic', '精神記憶碟'], ['bug', '蟲子記憶碟'],
+        ['rock', '岩石記憶碟'], ['ghost', '幽靈記憶碟'], ['dragon', '龍記憶碟'],
+        ['dark', '黑暗記憶碟'], ['steel', '鋼鐵記憶碟'], ['fairy', '妖精記憶碟'],
+    ].map(([type, name]) => [type, {
+        name, sprite: type === 'normal' ? '773' : `silvally-${type}`, types: [type],
+        baseStats: { hp: 95, atk: 95, def: 95, spAtk: 95, spDef: 95, speed: 95 },
+    }])) },
     649: { defaultForm: 'normal', forms: {
         normal: { name: '普通型態', sprite: 'genesect', types: ['bug', 'steel'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
         shock: { name: '閃電卡帶', sprite: 'genesect-shock', types: ['bug', 'steel'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
@@ -1405,6 +1432,43 @@ const POKEMON_FORM_DATA = {
     } },
 };
 
+for (const [id, types, stats] of [
+    [19,'dark,normal',[30,56,35,25,35,72]], [20,'dark,normal',[75,71,70,40,80,77]],
+    [26,'electric,psychic',[60,85,50,95,85,110]], [27,'ice,steel',[50,75,90,10,35,40]],
+    [28,'ice,steel',[75,100,120,25,65,65]], [37,'ice',[38,41,40,50,65,65]],
+    [38,'ice,fairy',[73,67,75,81,100,109]], [50,'ground,steel',[10,55,30,35,45,90]],
+    [51,'ground,steel',[35,100,60,50,70,110]], [52,'dark',[40,35,35,50,40,90]],
+    [53,'dark',[65,60,60,75,65,115]], [74,'rock,electric',[40,80,100,30,30,20]],
+    [75,'rock,electric',[55,95,115,45,45,35]], [76,'rock,electric',[80,120,130,55,65,45]],
+    [88,'poison,dark',[80,80,50,40,50,25]], [89,'poison,dark',[105,105,75,65,100,50]],
+    [103,'grass,dragon',[95,105,85,125,75,45]], [105,'fire,ghost',[60,80,110,50,80,45]],
+]) {
+    POKEMON_FORM_DATA[id] ||= { defaultForm: 'normal', forms: {
+        normal: { name: '普通形態', sprite: String(id), types: POKEMON_DATA[id].types, baseStats: POKEMON_DATA[id].baseStats },
+    } };
+    POKEMON_FORM_DATA[id].forms.alola = { name: '阿羅拉形態', sprite: `alola-${id}`, types: types.split(','),
+        baseStats: Object.fromEntries(['hp','atk','def','spAtk','spDef','speed'].map((key, i) => [key, stats[i]])),
+        unlock: 'alolaDex', unlockText: '完成阿羅拉圖鑑' };
+}
+
+for (const [id, variants] of [
+    [128, [
+        ['combat', '帕底亞鬥戰種', 'tauros-combat', ['fighting'], [75,110,105,30,70,100]],
+        ['blaze', '帕底亞火熾種', 'tauros-blaze', ['fighting','fire'], [75,110,105,30,70,100]],
+        ['aqua', '帕底亞水瀾種', 'tauros-aqua', ['fighting','water'], [75,110,105,30,70,100]],
+    ]],
+    [194, [['paldea', '帕底亞形態', 'wooper', ['poison','ground'], [55,45,45,25,25,15]]]],
+]) {
+    POKEMON_FORM_DATA[id] ||= { defaultForm: 'normal', forms: {
+        normal: { name: '普通形態', sprite: String(id), types: POKEMON_DATA[id].types, baseStats: POKEMON_DATA[id].baseStats },
+    } };
+    for (const [form, name, sprite, types, stats] of variants) {
+        POKEMON_FORM_DATA[id].forms[form] = { name, sprite: `paldea-${sprite}`, types,
+            baseStats: Object.fromEntries(['hp','atk','def','spAtk','spDef','speed'].map((key, i) => [key, stats[i]])),
+            unlock: 'paldeaDex', unlockText: '完成帕底亞圖鑑' };
+    }
+}
+
 const KYUREM_WHITE_FORM_DATA = {
     name: '焰白酋雷姆',
     displayName: '焰白酋雷姆',
@@ -1427,6 +1491,10 @@ function getPokemonFormDefinition(pokemonId, form) {
 }
 
 function getPokemonFormSpriteUrl(pokemonId, form, shiny = false, overdrive = false) {
+    if ([128, 194].includes(Number(pokemonId)) && (!form || form === 'normal')) return shiny ? getShinyPokemonSpriteUrl(pokemonId) : getPokemonSpriteUrl(pokemonId);
+    if (POKEMON_FORM_DATA[Number(pokemonId)]?.forms?.alola && (!form || form === 'normal')) return shiny ? getShinyPokemonSpriteUrl(pokemonId) : getPokemonSpriteUrl(pokemonId);
+    if (POKEMON_FORM_DATA[Number(pokemonId)]?.forms?.galar?.sprite === `galar-${Number(pokemonId)}` && (!form || form === 'normal')) return shiny ? getShinyPokemonSpriteUrl(pokemonId) : getPokemonSpriteUrl(pokemonId);
+    if (Number(pokemonId) === 773 && (!form || form === 'normal')) return shiny ? getShinyPokemonSpriteUrl(pokemonId) : getPokemonSpriteUrl(pokemonId);
     if (Number(pokemonId) === 646 && ['white', 'black'].includes(form)) {
         const formName = form === 'black' ? 'black' : 'white';
         return `sprites/animated/forms/${shiny ? 'shiny' : 'normal'}/kyurem-${formName}${overdrive ? '-overdrive' : ''}.gif`;
