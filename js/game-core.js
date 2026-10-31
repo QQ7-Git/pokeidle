@@ -2006,7 +2006,7 @@ class GameCore {
             // 五勝充能已用於星晶變身；星晶形態只會選擇晶光星群。
             candidates.push(...this.getSignatureMoves(pokemonId).map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));
         } else {
-            if (!skillInfo || skillInfo.skills.length < 2) {
+            if (!skillInfo || skillInfo.skills.length === 0) {
                 candidates.push({ name: '普通攻擊', power: 50, type: '', effectivenessTypes: pokemonTypes });
             }
             if (skillInfo) candidates.push(...skillInfo.skills.map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));

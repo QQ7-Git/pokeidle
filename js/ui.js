@@ -930,7 +930,7 @@ class GameUI {
         const selected = this.game._getBestSkillForEnemy(playerId, types);
         const regularSkills = this.game.getSkillForPokemon(playerId)?.skills || [];
         const skills = [...regularSkills, ...this.game.getSignatureMoves(playerId, types)];
-        this._setBattleSkills('player-battle-skill', skills, selected.type, selected.name, regularSkills.length < 2);
+        this._setBattleSkills('player-battle-skill', skills, selected.type, selected.name, regularSkills.length === 0);
         const towerSkill = this.game._towerMode && this.game.currentBattle?.wild?.isTowerEnemy
             ? this.game._getTowerEnemySkill(enemyId, POKEMON_DATA[playerId]?.types || []) : null;
         const enemySkills = towerSkill ? (POKEMON_DATA[enemyId]?.types || []).flatMap(type => {
