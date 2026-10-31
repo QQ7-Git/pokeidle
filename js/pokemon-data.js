@@ -1194,7 +1194,7 @@ const POKEMON_DATA = {
     1063: { id: 1063, name: 'Mega巨金怪', types: ['steel', 'psychic'], baseStats: { hp: 80, atk: 145, def: 150, spAtk: 105, spDef: 110, speed: 110 }, expGroup: 'slow' },
     1064: { id: 1064, name: 'Mega拉帝亞斯', types: ['dragon', 'psychic'], baseStats: { hp: 80, atk: 100, def: 120, spAtk: 140, spDef: 150, speed: 110 }, expGroup: 'slow' },
     1065: { id: 1065, name: 'Mega拉帝歐斯', types: ['dragon', 'psychic'], baseStats: { hp: 80, atk: 130, def: 100, spAtk: 160, spDef: 120, speed: 110 }, expGroup: 'slow' },
-    1066: { id: 1066, name: 'Mega裂空座', types: ['dragon', 'flying'], baseStats: { hp: 105, atk: 180, def: 100, spAtk: 180, spDef: 100, speed: 115 }, expGroup: 'slow' },
+    1066: { id: 1066, name: 'Mega烈空坐', types: ['dragon', 'flying'], baseStats: { hp: 105, atk: 180, def: 100, spAtk: 180, spDef: 100, speed: 115 }, expGroup: 'slow' },
     1067: { id: 1067, name: 'Mega長耳兔', types: ['normal', 'fighting'], baseStats: { hp: 65, atk: 136, def: 94, spAtk: 54, spDef: 96, speed: 135 }, expGroup: 'medium' },
     1068: { id: 1068, name: 'Mega烈咬陸鯊', types: ['dragon', 'ground'], baseStats: { hp: 108, atk: 170, def: 115, spAtk: 120, spDef: 95, speed: 92 }, expGroup: 'slow' },
     1069: { id: 1069, name: 'Mega路卡利歐', types: ['fighting', 'steel'], baseStats: { hp: 70, atk: 145, def: 88, spAtk: 140, spDef: 70, speed: 112 }, expGroup: 'mediumSlow' },
@@ -1293,10 +1293,10 @@ const POKEMON_FORM_DATA = {
     } },
     649: { defaultForm: 'normal', forms: {
         normal: { name: '普通型態', sprite: 'genesect', types: ['bug', 'steel'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
-        shock: { name: '閃電卡帶', sprite: 'genesect', types: ['bug', 'electric'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
-        burn: { name: '火焰卡帶', sprite: 'genesect-burn', types: ['bug', 'fire'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
-        chill: { name: '冰凍卡帶', sprite: 'genesect-chill', types: ['bug', 'ice'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
-        douse: { name: '水流卡帶', sprite: 'genesect-douse', types: ['bug', 'water'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
+        shock: { name: '閃電卡帶', sprite: 'genesect-shock', types: ['bug', 'steel'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
+        burn: { name: '火焰卡帶', sprite: 'genesect-burn', types: ['bug', 'steel'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
+        chill: { name: '冰凍卡帶', sprite: 'genesect-chill', types: ['bug', 'steel'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
+        douse: { name: '水流卡帶', sprite: 'genesect-douse', types: ['bug', 'steel'], baseStats: { hp: 71, atk: 120, def: 95, spAtk: 120, spDef: 95, speed: 99 } },
     } },
     479: { defaultForm: 'normal', forms: {
         normal: { name: '普通形態', sprite: 'rotom', types: ['electric', 'ghost'], baseStats: { hp: 50, atk: 50, def: 77, spAtk: 95, spDef: 77, speed: 91 } },
@@ -1318,6 +1318,14 @@ const POKEMON_FORM_DATA = {
     487: { defaultForm: 'altered', forms: {
         altered: { name: '普通形態', sprite: 'giratina', types: ['ghost', 'dragon'], baseStats: { hp: 150, atk: 100, def: 120, spAtk: 100, spDef: 120, speed: 90 } },
         origin: { name: '起源形態', sprite: 'giratina-origin', types: ['ghost', 'dragon'], baseStats: { hp: 150, atk: 120, def: 100, spAtk: 120, spDef: 100, speed: 90 }, unlock: 'formCatch487', unlockText: '捕獲該物種的 6V 與閃光' },
+    } },
+    483: { defaultForm: 'altered', forms: {
+        altered: { name: '普通形態', sprite: 'dialga', types: ['steel', 'dragon'], baseStats: { hp: 100, atk: 120, def: 120, spAtk: 150, spDef: 100, speed: 90 } },
+        origin: { name: '起源形態', sprite: 'dialga-origin', types: ['steel', 'dragon'], baseStats: { hp: 100, atk: 100, def: 120, spAtk: 150, spDef: 120, speed: 90 }, unlock: 'formCatch483', unlockText: '捕獲該物種的 6V 與閃光' },
+    } },
+    484: { defaultForm: 'altered', forms: {
+        altered: { name: '普通形態', sprite: 'palkia', types: ['water', 'dragon'], baseStats: { hp: 90, atk: 120, def: 100, spAtk: 150, spDef: 120, speed: 100 } },
+        origin: { name: '起源形態', sprite: 'palkia-origin', types: ['water', 'dragon'], baseStats: { hp: 90, atk: 100, def: 100, spAtk: 150, spDef: 120, speed: 120 }, unlock: 'formCatch484', unlockText: '捕獲該物種的 6V 與閃光' },
     } },
     383: { defaultForm: 'land', forms: {
         land: { name: '普通形態', sprite: 'groudon', types: ['ground'], baseStats: { hp: 100, atk: 150, def: 140, spAtk: 100, spDef: 90, speed: 90 } },
@@ -1349,15 +1357,18 @@ const POKEMON_FORM_DATA = {
         incarnate: { name: '化身形態', sprite: 'enamorus', types: ['fairy', 'flying'], baseStats: { hp: 74, atk: 115, def: 70, spAtk: 135, spDef: 80, speed: 106 } },
         therian: { name: '靈獸形態', sprite: 'enamorus-therian', types: ['fairy', 'flying'], baseStats: { hp: 74, atk: 115, def: 110, spAtk: 135, spDef: 100, speed: 46 } },
     } },
-    493: { defaultForm: 'normal', forms: Object.fromEntries([
-        ['normal', '一般'], ['fire', '火'], ['water', '水'], ['electric', '電'], ['grass', '草'], ['ice', '冰'],
-        ['fighting', '格鬥'], ['poison', '毒'], ['ground', '地面'], ['flying', '飛行'], ['psychic', '超能力'], ['bug', '蟲'],
-        ['rock', '岩石'], ['ghost', '幽靈'], ['dragon', '龍'], ['dark', '惡'], ['steel', '鋼'], ['fairy', '妖精'],
-    ].map(([type, typeName]) => [type, {
-        name: `${typeName}屬性`, sprite: type === 'normal' ? 'arceus' : `arceus-${type}`, types: [type],
+    493: { defaultForm: 'normal', forms: {
+        legend: { name: '傳說石板', sprite: 'arceus', types: ['normal'], baseStats: { hp: 120, atk: 120, def: 120, spAtk: 120, spDef: 120, speed: 120 }, unlock: 'arceusLegendPlate' },
+        ...Object.fromEntries([
+        ['normal', '淨空石板'], ['fire', '火球石板'], ['water', '水滴石板'], ['electric', '雷電石板'], ['grass', '碧綠石板'], ['ice', '冰柱石板'],
+        ['fighting', '拳頭石板'], ['poison', '毒針石板'], ['ground', '大地石板'], ['flying', '藍天石板'], ['psychic', '神奇石板'], ['bug', '玉蟲石板'],
+        ['rock', '岩石石板'], ['ghost', '妖怪石板'], ['dragon', '龍之石板'], ['dark', '惡顏石板'], ['steel', '鋼鐵石板'], ['fairy', '精靈石板'],
+    ].map(([type, plateName]) => [type, {
+        name: plateName, sprite: type === 'normal' ? 'arceus' : `arceus-${type}`, types: [type],
         baseStats: { hp: 120, atk: 120, def: 120, spAtk: 120, spDef: 120, speed: 120 },
         ...(type === 'normal' ? {} : { unlock: 'formCatch493', unlockText: '捕獲該物種的 6V 與閃光' }),
-    }])) },
+    }])),
+    } },
     412: { defaultForm: 'plant', forms: {
         plant: { name: '草木蓑衣', sprite: 'burmy', types: ['bug'], baseStats: { hp: 40, atk: 29, def: 45, spAtk: 29, spDef: 45, speed: 36 } },
         sandy: { name: '砂土蓑衣', sprite: 'burmy-sandy', types: ['bug'], baseStats: { hp: 40, atk: 29, def: 45, spAtk: 29, spDef: 45, speed: 36 } },
@@ -1378,9 +1389,9 @@ const POKEMON_FORM_DATA = {
     } },
     800: { defaultForm: 'normal', forms: {
         normal: { name: '奈克洛茲瑪', sprite: 'necrozma', types: ['psychic'], baseStats: { hp: 97, atk: 107, def: 101, spAtk: 127, spDef: 89, speed: 79 } },
-        'dusk-mane': { name: '黃昏之鬃', sprite: 'necrozma-dusk-mane', types: ['psychic', 'steel'], fusionPartner: 791, baseStats: { hp: 97, atk: 157, def: 127, spAtk: 113, spDef: 109, speed: 77 } },
-        'dawn-wings': { name: '拂曉之翼', sprite: 'necrozma-dawn-wings', types: ['psychic', 'ghost'], fusionPartner: 792, baseStats: { hp: 97, atk: 113, def: 109, spAtk: 157, spDef: 127, speed: 77 } },
-        ultra: { name: '究極奈克洛茲瑪', sprite: 'necrozma-ultra', types: ['psychic', 'dragon'], unlock: 'formCatch800', unlockText: '捕獲奈克洛茲瑪的 6V 與閃光', baseStats: { hp: 97, atk: 167, def: 97, spAtk: 167, spDef: 97, speed: 129 } },
+        'dusk-mane': { name: '黃昏之鬃', displayName: '黃昏之鬃', sprite: 'necrozma-dusk-mane', types: ['psychic', 'steel'], fusionPartner: 791, baseStats: { hp: 97, atk: 157, def: 127, spAtk: 113, spDef: 109, speed: 77 } },
+        'dawn-wings': { name: '拂曉之翼', displayName: '拂曉之翼', sprite: 'necrozma-dawn-wings', types: ['psychic', 'ghost'], fusionPartner: 792, baseStats: { hp: 97, atk: 113, def: 109, spAtk: 157, spDef: 127, speed: 77 } },
+        ultra: { name: '究極奈克洛茲瑪', displayName: '究極奈克洛茲瑪', sprite: 'necrozma-ultra', types: ['psychic', 'dragon'], unlock: 'formCatch800', unlockText: '捕獲奈克洛茲瑪的 6V 與閃光', baseStats: { hp: 97, atk: 167, def: 97, spAtk: 167, spDef: 97, speed: 129 } },
     } },
     898: { defaultForm: 'normal', forms: {
         normal: { name: '蕾冠王', sprite: 'calyrex', types: ['psychic', 'grass'], baseStats: { hp: 100, atk: 80, def: 80, spAtk: 80, spDef: 80, speed: 80 } },
@@ -1396,6 +1407,7 @@ const POKEMON_FORM_DATA = {
 
 const KYUREM_WHITE_FORM_DATA = {
     name: '焰白酋雷姆',
+    displayName: '焰白酋雷姆',
     sprite: 'kyurem-white',
     types: ['dragon', 'ice'],
     baseStats: { hp: 125, atk: 120, def: 90, spAtk: 170, spDef: 100, speed: 95 },
@@ -1403,6 +1415,7 @@ const KYUREM_WHITE_FORM_DATA = {
 
 const KYUREM_BLACK_FORM_DATA = {
     name: '闇黑酋雷姆',
+    displayName: '闇黑酋雷姆',
     sprite: 'kyurem-black',
     types: ['dragon', 'ice'],
     baseStats: { hp: 125, atk: 170, def: 100, spAtk: 120, spDef: 90, speed: 95 },
@@ -1417,6 +1430,9 @@ function getPokemonFormSpriteUrl(pokemonId, form, shiny = false, overdrive = fal
     if (Number(pokemonId) === 646 && ['white', 'black'].includes(form)) {
         const formName = form === 'black' ? 'black' : 'white';
         return `sprites/animated/forms/${shiny ? 'shiny' : 'normal'}/kyurem-${formName}${overdrive ? '-overdrive' : ''}.gif`;
+    }
+    if ([483, 484].includes(Number(pokemonId)) && form !== 'origin') {
+        return shiny ? getShinyPokemonSpriteUrl(pokemonId) : getPokemonSpriteUrl(pokemonId);
     }
     if (Number(pokemonId) === 386) return getDeoxysSpriteUrl(form, shiny);
     const definition = getPokemonFormDefinition(pokemonId, form);

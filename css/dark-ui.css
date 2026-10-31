@@ -163,8 +163,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #battle-scene .pokemon-battle-info .battle-types {
     grid-column: 2;
     grid-row: 2;
-    flex-wrap: nowrap;
-    white-space: nowrap;
+    flex-wrap: wrap;
+    white-space: normal;
     justify-self: end;
 }
 #battle-scene .pokemon-battle-info .hp-bar-wrapper,
@@ -330,6 +330,24 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .deoxys-form-options .team-appearance-card { min-height: 72px; }
 .form-locked-sprite { display: flex; align-items: center; justify-content: center; width: 54px; height: 54px; flex: 0 0 54px; border: 1px solid var(--border); border-radius: 6px; background: radial-gradient(circle, #26383a, #11191a); color: var(--text-secondary); font-size: 42px; font-weight: 700; line-height: 1; }
 .deoxys-form-options .team-appearance-card img { width: 54px; height: 54px; flex-basis: 54px; }
+.legend-plate-option .team-appearance-card { position: relative; isolation: isolate; overflow: hidden; border: 1px solid transparent; background: linear-gradient(125deg, rgba(86, 58, 18, .72), var(--bg-primary) 48%, rgba(30, 83, 79, .65)) padding-box, conic-gradient(from 35deg, #fff0a8, #f6a83d, #9d70ff, #55ddcc, #fff0a8) border-box; box-shadow: 0 0 12px rgba(255, 198, 76, .36), inset 0 0 18px rgba(255, 226, 145, .12); animation: legend-plate-aura 2.1s ease-in-out infinite alternate; }
+.legend-plate-option .team-appearance-card::before { position: absolute; z-index: 0; inset: 0; background: radial-gradient(circle at 14% 24%, rgba(255, 255, 223, .95) 0 1px, transparent 2px), radial-gradient(circle at 38% 78%, rgba(255, 222, 133, .9) 0 1px, transparent 2px), radial-gradient(circle at 73% 18%, rgba(153, 246, 255, .9) 0 1px, transparent 2px), radial-gradient(circle at 88% 70%, rgba(231, 188, 255, .9) 0 1px, transparent 2px); content: ''; pointer-events: none; animation: legend-plate-stars 1.5s ease-in-out infinite alternate; }
+.legend-plate-option .team-appearance-card::after { position: absolute; z-index: 0; inset: -45% auto -45% -45%; width: 34%; background: linear-gradient(90deg, transparent, rgba(255, 248, 213, .65), transparent); content: ''; pointer-events: none; animation: legend-plate-shimmer 3.2s ease-in-out infinite; }
+.legend-plate-option .team-appearance-card > img, .legend-plate-option .team-appearance-card > span { position: relative; z-index: 1; }
+.pokemon-form-badge.legend-plate-badge,
+#team-list .pokemon-form-badge.legend-plate-badge,
+#battle-scene .pokemon-form-badge.legend-plate-badge,
+.dex-form-label.pokemon-form-badge.legend-plate-badge,
+.team-detail-hero-info .pokemon-form-badge.legend-plate-badge { position: relative; isolation: isolate; overflow: hidden; border: 1px solid transparent; background: linear-gradient(125deg, rgba(130, 86, 24, .78), rgba(33, 103, 94, .72), rgba(105, 65, 148, .62)) padding-box, conic-gradient(from 35deg, #fff6c9, #ffba4b, #c28fff, #62f3df, #fff6c9) border-box; color: #fff2bd; box-shadow: 0 0 9px rgba(255, 208, 103, .56), 0 0 18px rgba(151, 112, 255, .3); animation: legend-plate-aura 1.6s ease-in-out infinite alternate; }
+.pokemon-form-badge.legend-plate-badge::before { position: absolute; z-index: 0; inset: 0; background: radial-gradient(circle at 14% 30%, rgba(255, 255, 223, .95) 0 1px, transparent 2px), radial-gradient(circle at 39% 72%, rgba(255, 222, 133, .9) 0 1px, transparent 2px), radial-gradient(circle at 73% 22%, rgba(153, 246, 255, .9) 0 1px, transparent 2px), radial-gradient(circle at 89% 66%, rgba(231, 188, 255, .9) 0 1px, transparent 2px); content: ''; pointer-events: none; animation: legend-plate-stars 1.2s ease-in-out infinite alternate; }
+.pokemon-form-badge.legend-plate-badge::after { position: absolute; z-index: 0; inset: -90% auto -90% -45%; width: 32%; background: linear-gradient(90deg, transparent, rgba(255, 248, 213, .82), transparent); content: ''; pointer-events: none; animation: legend-plate-shimmer 2.8s ease-in-out infinite; }
+.pokemon-form-badge.legend-plate-badge > span { position: relative; z-index: 1; }
+.deoxys-form-options .legend-plate-option input:checked + .team-appearance-card { background: linear-gradient(125deg, rgba(130, 86, 24, .78), rgba(33, 103, 94, .72), rgba(105, 65, 148, .62)) padding-box, conic-gradient(from 35deg, #fff6c9, #ffba4b, #c28fff, #62f3df, #fff6c9) border-box; box-shadow: inset 0 0 0 1px rgba(255, 243, 190, .85), 0 0 12px rgba(255, 208, 103, .72), 0 0 28px rgba(151, 112, 255, .42); animation-duration: 1.2s; }
+.legend-plate-option input:disabled + .team-appearance-card { cursor: not-allowed; }
+@keyframes legend-plate-shimmer { to { transform: translateX(520%); } }
+@keyframes legend-plate-aura { from { filter: brightness(.94); } to { filter: brightness(1.18); } }
+@keyframes legend-plate-stars { from { opacity: .38; } to { opacity: .95; } }
+@media (prefers-reduced-motion: reduce) { .legend-plate-option .team-appearance-card, .legend-plate-option .team-appearance-card::before, .legend-plate-option .team-appearance-card::after, .pokemon-form-badge.legend-plate-badge, .pokemon-form-badge.legend-plate-badge::before, .pokemon-form-badge.legend-plate-badge::after { animation: none; } }
 @media (max-width: 560px) {
     #deoxys-form-dialog.many-forms { width: calc(100% - 16px); padding: 12px; }
     #deoxys-form-dialog.many-forms .deoxys-form-options { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
@@ -416,7 +434,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 #battle-log .section-caption > span:first-child::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px rgba(77,243,220,.55); vertical-align: middle; }
 .log-messages { padding-right: 5px; scrollbar-color: #31575a transparent; scrollbar-width: thin; }
 .log-messages .log-entry { position: relative; padding: 7px 9px 7px 13px; margin-bottom: 4px; border: 1px solid rgba(77,243,220,.07); border-radius: 4px; background: rgba(5,11,13,.55); color: #c7d8d8; line-height: 1.55; overflow-wrap: anywhere; }
-.log-messages .log-signature-attack { border-color: rgba(185, 132, 255, .62); background: linear-gradient(110deg, rgba(70, 42, 112, .46), rgba(34, 68, 83, .48) 55%, rgba(104, 53, 91, .4)); box-shadow: inset 3px 0 0 #c79aff, 0 0 12px rgba(166, 112, 255, .16); }
+.log-messages .log-signature-attack { overflow: hidden; border-color: rgba(185, 132, 255, .62); background: linear-gradient(110deg, rgba(70, 42, 112, .46), rgba(34, 68, 83, .48) 55%, rgba(104, 53, 91, .4)); box-shadow: inset 3px 0 0 #c79aff, 0 0 12px rgba(166, 112, 255, .16); animation: signature-log-card-glow 1.8s ease-in-out infinite alternate; }
+.log-messages .log-signature-attack::after { content: ''; position: absolute; z-index: 0; top: 0; bottom: 0; left: -42%; width: 38%; transform: skewX(-18deg); background: linear-gradient(90deg, transparent, rgba(85, 243, 255, .04) 20%, rgba(255, 255, 255, .17) 50%, rgba(255, 135, 208, .07) 78%, transparent); pointer-events: none; animation: signature-log-card-sweep 3.2s ease-in-out infinite; }
+.log-messages .log-signature-attack .log-time, .log-messages .log-signature-attack .log-message { position: relative; z-index: 1; }
+.log-messages .log-signature-attack .log-message { isolation: isolate; }
+.log-messages .log-signature-attack .log-message::before { position: relative; z-index: 1; }
 .log-messages .log-signature-attack::before { width: 6px; height: 6px; top: 12px; background: #e1a6ff; box-shadow: 0 0 8px #ca7cff; }
 .log-messages .log-signature-attack .log-message::before { content: '✦ 專屬招式 ✦'; display: inline-block; margin: 0 5px 2px 0; padding: 1px 5px; border: 1px solid rgba(255, 224, 122, .75); border-radius: 4px; background: linear-gradient(100deg, #a66eff, #ed77c6 58%, #ffcf68); color: #181126; -webkit-text-fill-color: #181126; font-size: 9px; font-weight: 900; letter-spacing: .3px; vertical-align: 1px; filter: none; }
 .signature-vfx { --vfx-light: #fff0a6; --vfx-glow: #ffcf4a; position: absolute; z-index: 20; inset: 0; overflow: hidden; pointer-events: none; isolation: isolate; animation: signature-scene-flash 1.15s ease-out both; }
@@ -427,10 +449,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .signature-vfx--arcade::before { opacity: 1; background: repeating-linear-gradient(0deg,rgba(255,255,255,.08) 0 2px,transparent 2px 7px),linear-gradient(135deg,rgba(23,2,45,.86),rgba(76,0,106,.45) 50%,rgba(255,27,151,.28)); animation: signature-arcade-screen 1.15s steps(2,end) both; }
 .signature-vfx--arcade .signature-vfx__title { padding: 14px 24px; border: 3px solid #fff36c; background: linear-gradient(105deg,#ff2bba,#822bff 52%,#13cfff); clip-path: polygon(4% 0,100% 0,96% 100%,0 100%); box-shadow: 0 0 30px #fb39f0; }
 .signature-vfx--arcade .signature-vfx__title strong { font-style: italic; text-transform: uppercase; }
+@keyframes signature-log-card-glow { from { box-shadow: inset 3px 0 0 #c79aff, 0 0 12px rgba(166, 112, 255, .16); } to { box-shadow: inset 3px 0 0 #c79aff, 0 0 18px rgba(166, 112, 255, .38), 0 0 26px rgba(85, 243, 255, .14); } }
+@keyframes signature-log-card-sweep { 0%, 12% { left: -42%; opacity: 0; } 25%, 68% { opacity: .9; } 82%, 100% { left: 110%; opacity: 0; } }
 @keyframes signature-scene-flash { 0%,100% { filter: none; } 8% { filter: brightness(3) saturate(1.6); } 18% { filter: brightness(.35) saturate(1.5); } 35% { filter: brightness(1.5); } }
 @keyframes signature-title-slam { 0% { opacity: 0; transform: translate(-50%,-50%) scale(2.5) rotate(8deg); filter: blur(12px); } 17% { opacity: 1; transform: translate(-50%,-50%) scale(.82) rotate(-2deg); filter: blur(0); } 25%,77% { opacity: 1; transform: translate(-50%,-50%) scale(1); } 100% { opacity: 0; transform: translate(-50%,-74%) scale(.72) rotate(-5deg); filter: blur(4px); } }
 @keyframes signature-arcade-screen { 0%,100% { opacity: .25; } 12%,34% { opacity: 1; } 22%,48% { opacity: .35; } 55% { opacity: .85; } }
-@media (prefers-reduced-motion: reduce) { .signature-vfx, .signature-vfx::before, .signature-vfx__title { animation-duration: .5s; } }
+@media (prefers-reduced-motion: reduce) { .signature-vfx, .signature-vfx::before, .signature-vfx__title { animation-duration: .5s; } .log-messages .log-signature-attack, .log-messages .log-signature-attack::after, .log-messages .log-signature-attack .log-message { animation: none; } }
 .log-messages .log-entry::before { content: ''; position: absolute; top: 12px; left: 5px; width: 3px; height: 3px; border-radius: 50%; background: #6c9695; }
 .log-messages .log-time { display: inline-block; margin-right: 7px; color: #7fa5a3; font-family: Consolas, monospace; font-size: 10px; }
 .log-messages .log-attack { color: #e4eeee; }

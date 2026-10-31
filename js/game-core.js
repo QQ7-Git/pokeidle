@@ -491,6 +491,7 @@ class GameCore {
             let playerTimer = 0;
             let enemyTimer = 0;
             let playerAttackWasZero = false;
+            let lastAttackWasJudgment = false;
             let enemyAttackWasZero = false;
             let stalemate = false;
 
@@ -518,10 +519,12 @@ class GameCore {
                         bestSkill.power,
                         s.cachedCritRate,
                         s.cachedCritMultiplier,
-                        bestSkill.type
+                        bestSkill.type,
+                        bestSkill.hitCount
                     );
                     enemyHp -= result.damage;
                     playerAttackWasZero = result.damage === 0;
+                    lastAttackWasJudgment = bestSkill.isSignatureMove && bestSkill.englishName === 'Judgment';
                     if (bestSkill.isSignatureMove && Number(s.activePokemonId) !== 1024 && result.damage > 0) {
                         this._consumeSignatureMoveEnergy(s.activePokemonId);
                         bestSkill = this._getBestSkillForEnemy(s.activePokemonId, wildTypes, s.cachedPlayerLevel, s.playerStats.attack, enemyStats.defense);
@@ -548,7 +551,7 @@ class GameCore {
                     }
                 }
 
-                if (playerAttackWasZero && enemyAttackWasZero) {
+                if (playerAttackWasZero && s.playerHp > 0) {
                     stalemate = true;
                     break;
                 }
@@ -581,6 +584,7 @@ class GameCore {
             if (enemyHp <= 0) {
                 s.battlesSimulated++;
                 batchCount++;
+                this._recordArceusLegendPlateVictory(s.activePokemonId, wildPokemon, lastAttackWasJudgment);
                 const keldeoDurationExpired = this._completeKeldeoBattle(s.activePokemonId);
                 if (!keldeoDurationExpired) this._recordSignatureMoveVictory(s.activePokemonId);
 
@@ -872,36 +876,57 @@ class GameCore {
         return getPokemonFormDefinition(Number(pokemonId), this.getPokemonForm(pokemonId, pokemon));
     }
 
-    // 隊伍與戰鬥顯示名稱：保留寶可夢本名，並附上可讀的型態名稱。
+    // 顯示名稱只保留物種名稱；型態由各畫面的獨立徽章呈現。
     getPokemonDisplayName(pokemonId, pokemon = null) {
         const id = Number(pokemonId);
         const baseName = POKEMON_DATA[id]?.name || `#${id}`;
-        if (id === 386) {
-            const deoxysFormNames = { normal: '普通', attack: '攻擊', defense: '防禦', speed: '速度' };
-            const formLabel = deoxysFormNames[this.getPokemonForm(id, pokemon)] || deoxysFormNames.normal;
-            return `${baseName}（${formLabel}）`;
-        }
         const formData = this.getPokemonFormData(id, pokemon);
-        if (!formData) return baseName;
-
-        const formName = String(formData.name || '');
-        const speciesName = String(formData.displayName || baseName);
-        if (!formName || formData.fusionPartner || formName === speciesName || formName.includes(speciesName)) {
-            return formName || speciesName;
-        }
-
-        const formLabel = formName
-            .replace(/(?:形態|型態|屬性)$/, '')
-            .replace(/（([^（）]*)）/g, '$1');
-        if (!formLabel || formLabel === speciesName || formLabel.includes(speciesName)) return speciesName;
-        return `${speciesName}（${formLabel}）`;
+        return String(formData?.displayName || baseName);
     }
 
-    getSignatureMoves(pokemonId) {
+    getPokemonFormDisplayLabel(pokemonId, pokemon = null) {
+        const id = Number(pokemonId);
+        const form = this.getPokemonForm(id, pokemon);
+        if (id === 800 && form === 'ultra') return '';
+        if (id === 800 && ['dusk-mane', 'dawn-wings'].includes(form)) return '';
+        if (id === 646 && ['white', 'black'].includes(form)) return '';
+        if (id === 386) {
+            const names = { normal: '普通', attack: '攻擊', defense: '防禦', speed: '速度' };
+            return names[form] || names.normal;
+        }
+
+        const formData = this.getPokemonFormData(id, pokemon);
+        if (!formData) return '';
+        if (id === 898 && formData.fusionPartner) {
+            return formData.fusionPartner === 896 ? '騎白馬的樣子' : '騎黑馬的樣子';
+        }
+
+        let label = String(formData.name || '');
+        const speciesName = String(formData.displayName || POKEMON_DATA[id]?.name || '');
+        if (speciesName && label.endsWith(speciesName) && label !== speciesName) {
+            label = label.slice(0, -speciesName.length);
+        } else if (label === speciesName && formData.fusionPartner) {
+            label = form === 'dusk-mane' ? '黃昏之鬃' : '拂曉之翼';
+        } else if (label === speciesName) {
+            return '';
+        }
+        return label.replace(/(?:形態|型態|屬性)$/, '').replace(/（([^（）]*)）/g, '$1');
+    }
+
+    getSignatureMoves(pokemonId, targetTypes = null) {
         const id = Number(pokemonId);
         const form = this.getPokemonForm(id);
+        const judgmentType = form === 'legend' && Array.isArray(targetTypes) && targetTypes.length
+            ? Object.keys(TYPE_NAMES).reduce((bestType, type) =>
+                getTypeEffectiveness(type, targetTypes) > getTypeEffectiveness(bestType, targetTypes) ? type : bestType,
+                Object.keys(TYPE_NAMES)[0] || 'normal')
+            : this.getPokemonTypes(id)[0] || 'normal';
+        const genesectDriveTypes = { normal: 'normal', shock: 'electric', burn: 'fire', chill: 'ice', douse: 'water' };
         const moves = {
             646: {
+                normal: [
+                    { name: '冰封世界', englishName: 'Glaciate', type: 'ice' },
+                ],
                 white: [
                     { name: '交錯火焰', englishName: 'Fusion Flare', type: 'fire' },
                     { name: '極寒冷焰', englishName: 'Ice Burn', type: 'ice' },
@@ -912,13 +937,31 @@ class GameCore {
                 ],
             },
             800: {
-                'dusk-mane': [{ name: '流星閃衝', englishName: 'Sunsteel Strike', type: 'steel' }],
-                'dawn-wings': [{ name: '暗影之光', englishName: 'Moongeist Beam', type: 'ghost' }],
+                normal: [{ name: '光子噴湧', englishName: 'Photon Geyser', type: 'psychic' }],
+                'dusk-mane': [
+                    { name: '流星閃衝', englishName: 'Sunsteel Strike', type: 'steel' },
+                    { name: '光子噴湧', englishName: 'Photon Geyser', type: 'psychic' },
+                ],
+                'dawn-wings': [
+                    { name: '暗影之光', englishName: 'Moongeist Beam', type: 'ghost' },
+                    { name: '光子噴湧', englishName: 'Photon Geyser', type: 'psychic' },
+                ],
                 ultra: [{ name: '焚天滅世熾光爆', englishName: 'Light That Burns the Sky', type: 'psychic' }],
             },
             898: {
                 'ice-rider': [{ name: '雪矛', englishName: 'Glacial Lance', type: 'ice' }],
                 'shadow-rider': [{ name: '星碎', englishName: 'Astral Barrage', type: 'ghost' }],
+            },
+            718: {
+                '10': [
+                    { name: '千箭齊發', englishName: 'Thousand Arrows', type: 'ground' },
+                    { name: '千波激盪', englishName: 'Thousand Waves', type: 'ground' },
+                ],
+                '50': [
+                    { name: '千箭齊發', englishName: 'Thousand Arrows', type: 'ground' },
+                    { name: '千波激盪', englishName: 'Thousand Waves', type: 'ground' },
+                ],
+                complete: [{ name: '核心懲罰者', englishName: 'Core Enforcer', type: 'dragon' }],
             },
             720: {
                 confined: [{ name: '異次元洞', englishName: 'Hyperspace Hole', type: 'psychic' }],
@@ -930,23 +973,81 @@ class GameCore {
             },
             647: [{ name: '神秘之劍', englishName: 'Secret Sword', type: 'fighting' }],
             648: [{ name: '古老之歌', englishName: 'Relic Song', type: 'normal' }],
+            716: [{ name: '大地掌控', englishName: 'Geomancy', type: 'fairy' }],
+            717: [{ name: '死亡之翼', englishName: 'Oblivion Wing', type: 'flying' }],
+            719: [{ name: '鑽石風暴', englishName: 'Diamond Storm', type: 'rock' }],
+            1073: [{ name: '鑽石風暴', englishName: 'Diamond Storm', type: 'rock' }],
+            785: [{ name: '自然之怒', englishName: "Nature's Madness", type: 'fairy' }],
+            786: [{ name: '自然之怒', englishName: "Nature's Madness", type: 'fairy' }],
+            787: [{ name: '自然之怒', englishName: "Nature's Madness", type: 'fairy' }],
+            788: [{ name: '自然之怒', englishName: "Nature's Madness", type: 'fairy' }],
+            791: [{ name: '日光刃', englishName: 'Sunsteel Strike', type: 'steel' }],
+            792: [{ name: '暗影之光', englishName: 'Moongeist Beam', type: 'ghost' }],
+            801: [{ name: '花朵加農炮', englishName: 'Fleur Cannon', type: 'fairy' }],
+            802: [{ name: '暗影偷盜', englishName: 'Spectral Thief', type: 'ghost' }],
+            807: [{ name: '等離子閃電拳', englishName: 'Plasma Fists', type: 'electric' }],
+            809: [{ name: '鋼拳雙擊', englishName: 'Double Iron Bash', type: 'steel', power: 100, hitCount: 2 }],
+            890: [{ name: '極巨炮', englishName: 'Dynamax Cannon', type: 'dragon' }],
+            893: [{ name: '叢林治癒', englishName: 'Jungle Healing', type: 'grass' }],
+            1007: [{ name: '全開猛撞', englishName: 'Collision Course', type: 'fighting' }],
+            1008: [{ name: '閃電猛衝', englishName: 'Electro Drift', type: 'electric' }],
+            1001: [{ name: '大災難', englishName: 'Ruination', type: 'dark' }],
+            1002: [{ name: '大災難', englishName: 'Ruination', type: 'dark' }],
+            1003: [{ name: '大災難', englishName: 'Ruination', type: 'dark' }],
+            1004: [{ name: '大災難', englishName: 'Ruination', type: 'dark' }],
+            1025: [{ name: '惡毒鎖鏈', englishName: 'Malignant Chain', type: 'poison' }],
+            494: [{ name: 'V熱焰', englishName: 'V-create', type: 'fire' }],
+            649: [{ name: '高科技光炮', englishName: 'Techno Blast', type: genesectDriveTypes[form] || 'normal' }],
+            643: [{ name: '青焰', englishName: 'Blue Flare', type: 'fire' }],
+            644: [{ name: '雷擊', englishName: 'Bolt Strike', type: 'electric' }],
+            721: [{ name: '蒸汽爆炸', englishName: 'Steam Eruption', type: 'water' }],
+            641: [{ name: '枯葉風暴', englishName: 'Bleakwind Storm', type: 'flying' }],
+            642: [{ name: '鳴雷風暴', englishName: 'Wildbolt Storm', type: 'electric' }],
+            645: [{ name: '熱沙風暴', englishName: 'Sandsear Storm', type: 'ground' }],
+            150: [{ name: '精神擊破', englishName: 'Psystrike', type: 'psychic' }],
+            249: [{ name: '氣旋攻擊', englishName: 'Aeroblast', type: 'flying' }],
+            250: [{ name: '神聖之火', englishName: 'Sacred Fire', type: 'fire' }],
+            380: [{ name: '薄霧球', englishName: 'Mist Ball', type: 'psychic' }],
+            381: [{ name: '潔淨光芒', englishName: 'Luster Purge', type: 'psychic' }],
+            480: [{ name: '神通力', englishName: 'Extrasensory', type: 'psychic' }],
+            481: [{ name: '神通力', englishName: 'Extrasensory', type: 'psychic' }],
+            482: [{ name: '神通力', englishName: 'Extrasensory', type: 'psychic' }],
+            483: [{ name: '時光咆哮', englishName: 'Roar of Time', type: 'dragon' }],
+            484: [{ name: '亞空裂斬', englishName: 'Spacial Rend', type: 'dragon' }],
+            487: [{ name: '暗影潛襲', englishName: 'Shadow Force', type: 'ghost' }],
+            382: {
+                primal: [{ name: '根源波動', englishName: 'Origin Pulse', type: 'water' }],
+            },
+            383: {
+                primal: [{ name: '斷崖之劍', englishName: 'Precipice Blades', type: 'ground' }],
+            },
+            385: [{ name: '破滅之願', englishName: 'Doom Desire', type: 'steel' }],
+            386: [{ name: '精神突進', englishName: 'Psycho Boost', type: 'psychic' }],
+            491: [{ name: '暗黑洞', englishName: 'Dark Void', type: 'dark' }],
+            492: [{ name: '種子閃光', englishName: 'Seed Flare', type: 'grass' }],
+            905: [{ name: '陽春風暴', englishName: 'Springtide Storm', type: 'fairy' }],
+            384: [{ name: '畫龍點睛', englishName: 'Dragon Ascent', type: 'flying' }],
+            1066: [{ name: '畫龍點睛', englishName: 'Dragon Ascent', type: 'flying' }],
+            1064: [{ name: '薄霧球', englishName: 'Mist Ball', type: 'psychic' }],
+            1065: [{ name: '潔淨光芒', englishName: 'Luster Purge', type: 'psychic' }],
             888: {
                 crowned: [{ name: '巨獸斬', englishName: 'Behemoth Blade', type: 'steel' }],
             },
             889: {
                 crowned: [{ name: '巨獸彈', englishName: 'Behemoth Bash', type: 'steel' }],
             },
+            493: [{ name: '制裁光礫', englishName: 'Judgment', type: form === 'legend' ? judgmentType : (this.getPokemonTypes(id)[0] || 'normal') }],
             1017: [{ name: '棘藤棒', englishName: 'Ivy Cudgel', type: this.getPokemonTypes(id)[1] || 'grass' }],
             1024: {
                 stellar: [{ name: '晶光星群', englishName: 'Tera Starstorm', type: 'normal' }],
             },
         };
-        if (id === 646 && !this.isKyuremFused()) return [];
-        if (id === 800 && !this.isNecrozmaFused() && form !== 'ultra') return [];
+        if (id === 646 && !this.isKyuremFused() && form !== 'normal') return [];
+        if (id === 800 && !this.isNecrozmaFused() && !['normal', 'ultra'].includes(form)) return [];
         if (id === 898 && !this.isCalyrexFused()) return [];
         const definition = moves[id];
         const signatureMoves = Array.isArray(definition) ? definition : definition?.[form] || [];
-        return signatureMoves.map(move => ({ ...move, power: 200, isSignatureMove: true }));
+        return signatureMoves.map(move => ({ ...move, power: move.power ?? 200, hitCount: move.hitCount ?? 1, isSignatureMove: true }));
     }
 
     getSignatureFormTransition(pokemonId) {
@@ -980,6 +1081,20 @@ class GameCore {
         if (this.isSignatureFormTransitionActive(pokemonId)) return;
         if (!this.getSignatureMoves(pokemonId).length) return;
         this._setSignatureMoveWins(pokemonId, this.getSignatureMoveWins(pokemonId) + 1);
+    }
+
+    _recordArceusLegendPlateVictory(pokemonId, wildPokemon, usedJudgment) {
+        if (Number(pokemonId) !== 493 || !usedJudgment || this.getPokemonForm(493) === 'legend') return;
+        const plateForms = Object.keys(POKEMON_FORM_DATA[493].forms).filter(form => form !== 'legend');
+        if (!plateForms.every(form => this.isPokemonFormUnlocked(493, form))) return;
+        this.gameState.arceusLegendPlateTypes ||= {};
+        for (const type of this.getPokemonTypes(wildPokemon.id, wildPokemon)) {
+            if (Object.hasOwn(TYPE_NAMES, type)) this.gameState.arceusLegendPlateTypes[type] = true;
+        }
+        if (Object.keys(TYPE_NAMES).every(type => this.gameState.arceusLegendPlateTypes[type])) {
+            this.gameState.formUnlocks ||= {};
+            this.gameState.formUnlocks.arceusLegendPlate = true;
+        }
     }
 
     _consumeSignatureMoveEnergy(pokemonId) {
@@ -1896,7 +2011,7 @@ class GameCore {
             }
             if (skillInfo) candidates.push(...skillInfo.skills.map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));
             if (signatureMovesReady) {
-                candidates.push(...this.getSignatureMoves(pokemonId).map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));
+                candidates.push(...this.getSignatureMoves(pokemonId, wildTypes).map(skill => ({ ...skill, effectivenessTypes: [skill.type] })));
             }
         }
 
@@ -1909,13 +2024,21 @@ class GameCore {
                 ? 1
                 : getBestTypeEffectiveness(candidate.effectivenessTypes, wildTypes, this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0).multiplier;
             const baseDamage = this._getDamageBase(attackerLevel, attackStat, Math.max(1, defenseStat), candidate.power);
-            const expectedDamage = Math.floor(baseDamage * effectiveness);
+            const expectedDamage = Math.floor(baseDamage * effectiveness) * (candidate.hitCount || 1);
             if (expectedDamage > bestDamage) {
                 best = candidate;
                 bestDamage = expectedDamage;
             }
         }
-        return { power: best.type ? best.power : 0, name: best.name, type: best.type, isSignatureMove: !!best.isSignatureMove };
+        if (Number(pokemonId) === 718 && signatureMovesReady &&
+            ['Thousand Arrows', 'Thousand Waves'].includes(best.englishName)) {
+            const equalPowerZygardeMoves = this.getSignatureMoves(pokemonId)
+                .filter(move => ['Thousand Arrows', 'Thousand Waves'].includes(move.englishName));
+            if (equalPowerZygardeMoves.length === 2) {
+                best = equalPowerZygardeMoves[Math.random() < 0.5 ? 0 : 1];
+            }
+        }
+        return { power: best.type ? best.power : 0, name: best.name, type: best.type, hitCount: best.hitCount || 1, isSignatureMove: !!best.isSignatureMove };
     }
 
     _getTowerEnemySkill(pokemonId, targetTypes) {
@@ -2209,7 +2332,19 @@ class GameCore {
     }
 
     // #6 接受預計算的暴擊率和暴擊倍率，避免每次呼叫 getGemBonuses/getTalentValue
-    _calculateDamageOffline(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer, skillPower, cachedCritRate, cachedCritMultiplier, skillType = '') {
+    _calculateDamageOffline(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer, skillPower, cachedCritRate, cachedCritMultiplier, skillType = '', hitCount = 1) {
+        if (hitCount > 1) {
+            const hits = Array.from({ length: hitCount }, () => this._calculateDamageOffline(
+                attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer,
+                skillPower, cachedCritRate, cachedCritMultiplier, skillType, 1
+            ));
+            return {
+                damage: hits.reduce((total, hit) => total + hit.damage, 0),
+                criticalHit: hits.some(hit => hit.criticalHit),
+                hitCount,
+                hitDamages: hits.map(hit => hit.damage),
+            };
+        }
         const power = skillPower > 0 ? skillPower : 50;
 
         // 基礎傷害
@@ -2316,7 +2451,7 @@ class GameCore {
                 this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0
             );
             const typeMult = typeResult.multiplier;
-            const estimatedDmg = Math.floor(baseDmg * typeMult);
+            const estimatedDmg = Math.floor(baseDmg * typeMult) * (bestAttack.hitCount || 1);
             const minDmg = Math.floor(estimatedDmg * 0.85);
 
             const atkInterval = this.getAttackInterval(stats.speed);
@@ -2354,7 +2489,21 @@ class GameCore {
     // ===================== 傷害計算（官方公式簡化版） =====================
     // Damage = ((2*Level/5+2) * Power * A/D / 50 + 2) * Type * CriticalHit * Random
     // 招式威力固定50，無STAB
-    calculateDamage(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer = false, skillPower = 0, skillType = '') {
+    calculateDamage(attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes, isPlayer = false, skillPower = 0, skillType = '', hitCount = 1) {
+        if (hitCount > 1) {
+            const hits = Array.from({ length: hitCount }, () => this.calculateDamage(
+                attackerLevel, attackStat, defenseStat, attackerTypes, defenderTypes,
+                isPlayer, skillPower, skillType, 1
+            ));
+            return {
+                damage: hits.reduce((total, hit) => total + hit.damage, 0),
+                criticalHit: hits.some(hit => hit.criticalHit),
+                typeEffectiveness: hits[0].typeEffectiveness,
+                effectivenessText: hits[0].effectivenessText,
+                hitCount,
+                hitDamages: hits.map(hit => hit.damage),
+            };
+        }
         const power = skillPower > 0 ? skillPower : 50; // 有技能時使用技能威力，否則固定50
         const towerNoTypeAdvantage = this._towerMode && isPlayer &&
             this.gameState.tower.currentFloor >= TOWER_NO_TYPE_ADVANTAGE_FLOOR;
@@ -2596,10 +2745,10 @@ class GameCore {
         }
     }
 
-    // 雙方都無法造成傷害時跳過一般道路敵人，不觸發勝利或獎勵結算。
+    // 我方無法對一般道路敵人造成傷害時跳過，避免免疫對局卡住；不觸發勝利或獎勵結算。
     _skipStalemateBattle() {
         const battle = this.currentBattle;
-        if (this._towerMode || !battle?.playerAttackWasZero || !battle?.enemyAttackWasZero) return false;
+        if (this._towerMode || !battle?.playerAttackWasZero) return false;
 
         this.stopBattle();
         this._completeKeldeoBattle(this.gameState.team[this.gameState.activePokemonIndex]);
@@ -2677,6 +2826,7 @@ class GameCore {
             const skillPower = bestSkill.power;
             const skillName = bestSkill.name;
             const skillType = bestSkill.type;
+            this.currentBattle.lastAttackWasJudgment = bestSkill.isSignatureMove && bestSkill.englishName === 'Judgment';
 
             const result = this.calculateDamage(
                 activePokemon.level,
@@ -2686,7 +2836,8 @@ class GameCore {
                 wildTypes,
                 true, // isPlayer
                 skillPower,
-                skillType
+                skillType,
+                bestSkill.hitCount
             );
             this.currentBattle.wildCurrentHp -= result.damage;
             this.currentBattle.playerAttackWasZero = result.damage === 0;
@@ -2704,6 +2855,7 @@ class GameCore {
                     maxHp: this.currentBattle.wildMaxHp,
                     skillName: skillName,
                     skillType: skillType,
+                    hitCount: result.hitCount || 1,
                     isSignatureMove: bestSkill.isSignatureMove,
                     signatureMoveConsumed,
                 });
@@ -2808,6 +2960,7 @@ class GameCore {
         const battle = this.currentBattle;
         const wildPokemon = battle.wild;
         const activePokemonId = this.gameState.team[this.gameState.activePokemonIndex];
+        this._recordArceusLegendPlateVictory(activePokemonId, wildPokemon, battle.lastAttackWasJudgment);
         const keldeoDurationExpired = this._completeKeldeoBattle(activePokemonId);
         if (!keldeoDurationExpired) this._recordSignatureMoveVictory(activePokemonId);
 
@@ -3360,7 +3513,7 @@ class GameCore {
                 profile.types,
                 this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0
             ).multiplier;
-            const estimatedDamage = Math.floor(damage * effectiveness);
+            const estimatedDamage = Math.floor(damage * effectiveness) * (skill.hitCount || 1);
             const minDamage = estimatedDamage === 0 ? 0 : Math.max(1, Math.floor(estimatedDamage * 0.85));
             const interval = this.getAttackInterval(stats.speed);
             const time = minDamage > 0 ? Math.ceil(profile.stats.hp / minDamage) * interval : Infinity;
@@ -5002,7 +5155,7 @@ _isRouteCompleteByCondition(routeId) {
                 this._towerMode ? TOWER_IMMUNITY_MULTIPLIER : 0
             );
             const typeMult = typeResult.multiplier;
-            const estimatedDmg = Math.floor(baseDmg * typeMult);
+            const estimatedDmg = Math.floor(baseDmg * typeMult) * (bestAttack.hitCount || 1);
             // 考慮傷害波動最低值(85%)來判定一擊必殺，避免因波動導致需要兩次攻擊
             const minDmg = Math.floor(estimatedDmg * 0.85);
 

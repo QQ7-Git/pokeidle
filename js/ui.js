@@ -520,6 +520,9 @@ class GameUI {
                     this.addBattleLog('我方寶可夢倒下了... 正在回覆生命值', 'defeat');
                 }
                 break;
+            case 'stalemateSkipped':
+                this.addBattleLog(`無法對 ${data.pokemonName} 造成傷害，已跳過此戰（無獎勵）`, 'normal');
+                break;
             case 'routeBattleFailure':
                 this.updateRoadFailureStatus(data.failures);
                 break;
@@ -557,7 +560,8 @@ class GameUI {
                         : matchup > 1
                             ? '<span class="matchup-icon matchup-up" title="剋制敵方">⚔️</span>'
                             : matchup < 1 ? '<span class="matchup-icon matchup-down" title="被敵方抵抗">🛡️</span>' : '';
-                    playerTypesElement.innerHTML = playerTypes.map(type => `<span class="type-badge ${type}">${TYPE_NAMES[type]}</span>`).join(' ') + matchupIcon;
+                    const formLabel = this.game.getPokemonFormDisplayLabel(pokemonId, pokemon);
+                    playerTypesElement.innerHTML = playerTypes.map(type => `<span class="type-badge ${type}">${TYPE_NAMES[type]}</span>`).join(' ') + (formLabel ? `<span class="${this._getPokemonFormBadgeClass(pokemonId, pokemon)}"><span>${formLabel}</span></span>` : '') + matchupIcon;
                     const hpPercent = Math.max(0, this.game.currentBattle.playerCurrentHp / this.game.currentBattle.playerMaxHp * 100);
                     document.getElementById('player-hp-bar').style.width = `${hpPercent}%`;
                     document.getElementById('player-hp-text').textContent = `${this.game.currentBattle.playerCurrentHp}/${this.game.currentBattle.playerMaxHp}`;
@@ -825,9 +829,10 @@ class GameUI {
         } else if (enemyEffectiveness < 1) {
             enemyTypeIcon = `<span class="matchup-icon matchup-down" title="被我方抵抗">🛡️</span>`;
         }
+        const enemyFormLabel = this.game.getPokemonFormDisplayLabel(wild.id, wild);
         const enemyTypesHtml = wildTypes.map(t =>
             `<span class="type-badge ${t}">${TYPE_NAMES[t]}</span>`
-        ).join(' ') + enemyTypeIcon;
+        ).join(' ') + (enemyFormLabel ? `<span class="${this._getPokemonFormBadgeClass(wild.id, wild)}"><span>${enemyFormLabel}</span></span>` : '') + enemyTypeIcon;
         document.getElementById('enemy-types').innerHTML = enemyTypesHtml;
 
         // 敵方精靈圖（閃光寶可夢使用閃光圖片）
@@ -867,20 +872,15 @@ class GameUI {
         } else if (playerEffectiveness < 1) {
             playerTypeIcon = `<span class="matchup-icon matchup-down" title="被敵方抵抗">🛡️</span>`;
         }
+        const playerFormLabel = this.game.getPokemonFormDisplayLabel(playerPokemonId, playerPokemon);
         const playerTypesHtml = playerTypes.map(t =>
             `<span class="type-badge ${t}">${TYPE_NAMES[t]}</span>`
-        ).join(' ') + playerTypeIcon;
+        ).join(' ') + (playerFormLabel ? `<span class="${this._getPokemonFormBadgeClass(playerPokemonId, playerPokemon)}"><span>${playerFormLabel}</span></span>` : '') + playerTypeIcon;
         const playerOverdriveBadge = Number(playerPokemonId) === 646 && this.game.isKyuremOverdrive()
             ? '<span class="kyurem-overdrive-badge">超頻驅動</span>'
             : '';
-        const playerCalyrexFormBadge = Number(playerPokemonId) === 898 && this.game.isCalyrexFused()
-            ? `<span class="kyurem-overdrive-badge calyrex-rider-badge">${this.game.getCalyrexFusionPartner() === 896 ? '騎白馬的樣子' : '騎黑馬的樣子'}</span>`
-            : '';
-        const playerTerapagosFormBadge = Number(playerPokemonId) === 1024 && ['terastal', 'stellar'].includes(playerPokemon.form)
-            ? `<span class="kyurem-overdrive-badge terapagos-form-badge">${playerPokemon.form === 'stellar' ? '星晶形態' : '太晶形態'}</span>`
-            : '';
         const playerTypesElement = document.getElementById('player-types');
-        playerTypesElement.innerHTML = `${playerTypesHtml} ${playerOverdriveBadge}${playerCalyrexFormBadge}${playerTerapagosFormBadge}`;
+        playerTypesElement.innerHTML = `${playerTypesHtml} ${playerOverdriveBadge}`;
         this.updateBattleEnergyDisplay(playerPokemonId);
         this._updateBattleSkills(wildTypes);
 
@@ -918,13 +918,18 @@ class GameUI {
             '<span class="shiny-entry-orbit"></span></div>';
     }
 
+    _getPokemonFormBadgeClass(pokemonId, pokemon = null) {
+        const isLegendPlateArceus = Number(pokemonId) === 493 && this.game.getPokemonForm(493, pokemon) === 'legend';
+        return `pokemon-form-badge${isLegendPlateArceus ? ' legend-plate-badge' : ''}`;
+    }
+
     _updateBattleSkills(wildTypes = null) {
         const playerId = this.game.gameState.team[this.game.gameState.activePokemonIndex];
         const enemyId = this.game.currentBattle?.wild?.id;
         const types = wildTypes || this.game.getPokemonTypes(enemyId, this.game.currentBattle?.wild);
         const selected = this.game._getBestSkillForEnemy(playerId, types);
         const regularSkills = this.game.getSkillForPokemon(playerId)?.skills || [];
-        const skills = [...regularSkills, ...this.game.getSignatureMoves(playerId)];
+        const skills = [...regularSkills, ...this.game.getSignatureMoves(playerId, types)];
         this._setBattleSkills('player-battle-skill', skills, selected.type, selected.name, regularSkills.length < 2);
         const towerSkill = this.game._towerMode && this.game.currentBattle?.wild?.isTowerEnemy
             ? this.game._getTowerEnemySkill(enemyId, POKEMON_DATA[playerId]?.types || []) : null;
@@ -938,26 +943,27 @@ class GameUI {
     _setBattleSkills(elementId, skills, selectedType, selectedName = '', includeBasicAttack = false) {
         const container = document.getElementById(elementId);
         const candidates = includeBasicAttack ? [{ name: '普通攻擊', type: '' }, ...skills] : (skills.length ? skills : [{ name: '普通攻擊', type: '' }]);
-        const key = JSON.stringify([candidates, selectedType, selectedName]);
+        const activePokemonId = this.game.gameState.team[this.game.gameState.activePokemonIndex];
+        const terapagosStellarMove = Number(activePokemonId) === 1024 && this.game.getPokemonForm(activePokemonId) === 'stellar';
+        const signatureLocked = !terapagosStellarMove && candidates.some(skill => skill.isSignatureMove) && this.game.getSignatureMoveWins(activePokemonId) < 5;
+        const key = JSON.stringify([candidates, selectedType, selectedName, signatureLocked]);
         if (container.dataset.skillsKey === key) return;
         container.dataset.skillsKey = key;
         container.replaceChildren();
         let signatureRow = null;
         for (const skill of candidates) {
             const label = document.createElement('span');
-            const activePokemonId = this.game.gameState.team[this.game.gameState.activePokemonIndex];
-            const terapagosStellarMove = Number(activePokemonId) === 1024 && this.game.getPokemonForm(activePokemonId) === 'stellar';
-            const signatureLocked = skill.isSignatureMove && !terapagosStellarMove && this.game.getSignatureMoveWins(activePokemonId) < 5;
-            label.textContent = signatureLocked ? `🔒 ${skill.name}` : skill.name;
+            const skillLocked = skill.isSignatureMove && signatureLocked;
+            label.textContent = skillLocked ? `🔒 ${skill.name}` : skill.name;
             label.className = `type-badge ${TYPE_NAMES[skill.type] ? skill.type : 'battle-skill-basic'}`;
-            if (signatureLocked) {
+            if (skillLocked) {
                 label.classList.add('battle-skill-signature-locked');
                 label.setAttribute('aria-disabled', 'true');
             }
             const isSelected = skill.name === selectedName && skill.type === selectedType;
             if (candidates.length > 1 && !isSelected) {
                 label.classList.add('battle-skill-unused');
-                label.title = signatureLocked
+                label.title = skillLocked
                     ? `專屬招式尚未充滿能量（${this.game.getSignatureMoveWins(this.game.gameState.team[this.game.gameState.activePokemonIndex])}/5）`
                     : '目前未使用的技能';
             } else if (isSelected) {
@@ -1054,7 +1060,8 @@ class GameUI {
         // 顯示傷害資訊
         const critText = data.critical ? '💥會心一擊！' : '';
         const effectText = data.effectivenessText || '';
-        const skillText = data.skillName ? `使用【${data.skillName}】` : '';
+        const hitText = data.hitCount > 1 ? `連續命中 ${data.hitCount} 下，` : '';
+        const skillText = data.skillName ? `使用【${data.skillName}】${hitText}` : '';
         this.addBattleLog(`${skillText}${critText}造成 ${data.damage} 點傷害 ${effectText}`, data.isSignatureMove ? 'signatureAttack' : 'attack');
     }
 
@@ -1459,7 +1466,8 @@ class GameUI {
             const battleStats = this.game.calculateBattleStats(index);
             const expProgress = this.game.getExpProgress(pokemonId);
             const catchupPercent = Math.round((this.game.getTeamCatchupMultiplier(pokemonId) - 1) * 1000) / 10;
-            const teamDisplayName = pokemon.name || POKEMON_DATA[pokemonId]?.name;
+            const teamDisplayName = this.game.getPokemonDisplayName(pokemonId, pokemon);
+            const teamFormLabel = this.game.getPokemonFormDisplayLabel(pokemonId, pokemon);
 
             const formTypes = this.game.getPokemonTypes(pokemonId, pokemon);
             const typeBadges = formTypes.map(t =>
@@ -1505,9 +1513,7 @@ const hasShiny = this.game.gameState.shinyDex[pokemonId];
 const overdriveBadgeHtml = Number(pokemonId) === 646 && this.game.isKyuremOverdrive()
     ? '<span class="kyurem-overdrive-badge">超頻驅動</span>'
     : '';
-const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFused()
-    ? `<span class="kyurem-overdrive-badge">${this.game.getCalyrexFusionPartner() === 896 ? '騎白馬的樣子' : '騎黑馬的樣子'}</span>`
-    : '';
+            const formBadgeHtml = teamFormLabel ? `<span class="${this._getPokemonFormBadgeClass(pokemonId, pokemon)}"><span>${teamFormLabel}</span></span>` : '';
 
             // 技能等級顯示（0不顯示）
             const skillLevel = storedData ? (storedData.skillLevel || 0) : 0;
@@ -1528,7 +1534,7 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                     <div class="slot-sprite${showShiny ? ' shiny' : ''}"><img src="${slotSpriteUrl}" alt="${pokemon.name}" onerror="fallbackPokemonSprite(this, ${pokemonId}, ${!!showShiny}, '🔵')"></div>
                     <div class="slot-info">
                         <div class="slot-name"><span class="slot-name-main">${teamDisplayName}</span>${showShiny ? '<span class="team-shiny-mark" title="閃光">✨</span>' : ''}${isActive ? '<span class="team-active-mark" title="目前出戰">⚔️</span>' : ''}${towerFainted ? '<span class="tower-fainted-label">已倒下</span>' : ''}<small class="team-level">Lv.${pokemon.level}</small>${skillBadgeHtml}</div>
-                        <div class="slot-type-nature${calyrexRiderBadgeHtml ? ' calyrex-rider-row' : ''}">${typeBadges}${overdriveBadgeHtml}${calyrexRiderBadgeHtml}</div>
+                        <div class="slot-type-nature">${typeBadges}${formBadgeHtml}${overdriveBadgeHtml}</div>
                         ${energyHtml}
                     </div>
                     <div class="team-slot-actions${POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386 || canToggleKyuremFusion ? ' has-form-actions' : ''}">
@@ -1616,18 +1622,7 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                 }
                 this.showCalyrexFusionPartnerDialog();
             });
-            if ((POKEMON_FORM_DATA[pokemonId] || Number(pokemonId) === 386) && ![800, 898, 1024].includes(Number(pokemonId))) {
-                const formNames = POKEMON_FORM_DATA[pokemonId]?.forms || { normal: { name: '普通' }, attack: { name: '攻擊' }, defense: { name: '防禦' }, speed: { name: '速度' } };
-                const formLabel = document.createElement('small');
-                formLabel.className = 'deoxys-form-label pokemon-form-badge';
-                const selectedFormName = formNames[pokemon.form]?.name || formNames[pokemon.form] || '普通';
-                const temporaryTransition = this.game.getSignatureFormTransition(pokemonId);
-                formLabel.textContent = temporaryTransition && pokemon.form === temporaryTransition.form
-                    ? `${temporaryTransition.displayName} · 剩餘 ${this.game.gameState[temporaryTransition.remainingKey] || 0} 場`
-                    : formatPokemonFormDisplayName(selectedFormName);
-                slot.querySelector('.slot-type-nature')?.appendChild(formLabel);
-            }
-        slot.querySelector('.deoxys-form-team-btn')?.addEventListener('click', event => {
+            slot.querySelector('.deoxys-form-team-btn')?.addEventListener('click', event => {
             event.preventDefault();
             event.stopPropagation();
                 this.showDeoxysFormDialog(pokemonId, 'edit');
@@ -1793,13 +1788,10 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
         const showShiny = this.game.gameState.pokedexDisplay[id] === 'shiny';
         const teamDisplayForm = Number(id) === 1024 ? 'normal' : pokemon.form;
         const spriteUrl = POKEMON_FORM_DATA[id] || Number(id) === 386 || ['white', 'black'].includes(teamDisplayForm) ? getPokemonFormSpriteUrl(id, teamDisplayForm, showShiny, Number(id) === 646 && this.game.isKyuremOverdrive()) : showShiny ? getShinyPokemonSpriteUrl(id) : getPokemonSpriteUrl(id);
-        const formDefinition = this.game.getPokemonFormData(id, pokemon);
-        const formName = Number(id) !== 1024 && formDefinition && formDefinition.name !== pokemon.name
-            ? `（${formDefinition.name}）`
-            : Number(id) === 386 ? `（${{ normal: '普通', attack: '攻擊', defense: '防禦', speed: '速度' }[pokemon.form] || '普通'}形態）` : '';
-        document.getElementById('team-detail-title').textContent = `${pokemon.name}${formName} · Lv.${pokemon.level}`;
+        const formLabel = this.game.getPokemonFormDisplayLabel(id, pokemon);
+        document.getElementById('team-detail-title').textContent = `${this.game.getPokemonDisplayName(id, pokemon)} · Lv.${pokemon.level}`;
         const detailHtml = `
-            <div class="team-detail-hero"><div class="team-detail-sprite"><img src="${spriteUrl}" alt="${pokemon.name}" onerror="fallbackPokemonSprite(this, ${id}, ${!!showShiny}, '🔵')"></div><div class="team-detail-hero-info"><div class="team-detail-badge">${index === this.game.gameState.activePokemonIndex ? '目前出戰' : '隊伍成員'}</div><p class="team-detail-intro">戰力 ${this.game.calculatePower(id, true).toLocaleString()}<br>潛力 ${this.game.calculatePotential(id)}%</p></div></div>
+                <div class="team-detail-hero"><div class="team-detail-sprite"><img src="${spriteUrl}" alt="${pokemon.name}" onerror="fallbackPokemonSprite(this, ${id}, ${!!showShiny}, '🔵')"></div><div class="team-detail-hero-info"><div class="team-detail-badge">${index === this.game.gameState.activePokemonIndex ? '目前出戰' : '隊伍成員'}</div>${formLabel ? `<span class="${this._getPokemonFormBadgeClass(id, pokemon)}"><span>${formLabel}</span></span>` : ''}<p class="team-detail-intro">戰力 ${this.game.calculatePower(id, true).toLocaleString()}<br>潛力 ${this.game.calculatePotential(id)}%</p></div></div>
             <h3>戰鬥屬性</h3><p class="team-detail-note">圖條以這隻寶可夢的最高戰鬥屬性為 100%。</p><div class="team-detail-final">${finalStats.map(([name, value]) => `<div><span>${name}</span><strong>${value.toLocaleString()}</strong><div class="team-detail-meter" aria-hidden="true"><div style="width:${Math.max(0, Math.min(100, value / maxStat * 100))}%"></div></div></div>`).join('')}</div>
             <h3>詳細數值</h3><p class="team-detail-note">有效種族值包含樹果與閃光加成；自身數值不含隊友、圖鑑、寶石及天賦加成。</p>
             <div class="team-detail-table"><div class="team-detail-row team-detail-labels"><strong>屬性</strong><span>種族值</span><span>有效值</span><span>IV</span><span>自身</span></div>${rows}</div>`;
@@ -1947,23 +1939,30 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
             defense: { name: '防禦形態', sprite: 'defense' }, speed: { name: '速度形態', sprite: 'speed' },
         };
         const transition = this.game.getSignatureFormTransition(id);
-        const selectableForms = Object.fromEntries(Object.entries(forms).filter(([form, data]) => !data.fusionPartner && !(transition && form === transition.form)));
+        const selectableForms = Object.fromEntries(Object.entries(forms).filter(([form, data]) =>
+            !data.fusionPartner && !(transition && form === transition.form)
+        ));
         const currentForm = this.game.getPokemonForm(id);
         dialog.classList.toggle('many-forms', Object.keys(selectableForms).length > 4);
         options.innerHTML = `<legend><span>型態（影響屬性與種族值）</span></legend>${Object.entries(selectableForms).map(([form, data]) => {
             const unlocked = this.game.isPokemonFormUnlocked(id, form);
+            const secretLegend = id === 493 && form === 'legend';
             const preview = unlocked
                 ? `<img data-deoxys-preview="${form}" src="${getPokemonFormSpriteUrl(id, form, false)}" alt="">`
                 : '<span class="form-locked-sprite" aria-hidden="true">?</span>';
             const lockText = data.unlockText || (data.unlock === 'zygarde50' ? '捕獲 6V 基格爾德' : data.unlock === 'zygardeComplete' ? '捕獲閃光基格爾德' : '尚未解鎖');
-            return `<label class="${unlocked ? '' : 'form-locked'}"><input type="radio" name="deoxys-form" value="${form}" ${form === currentForm ? 'checked' : ''} ${unlocked ? '' : 'disabled'}><span class="team-appearance-card">${preview}<span><strong>${unlocked ? formatPokemonFormDisplayName(data.name) : '????'}</strong>${!unlocked ? `<small>${lockText}</small>` : ''}</span></span></label>`;
+            const optionClass = [secretLegend ? 'legend-plate-option' : '', secretLegend && !unlocked ? 'legend-plate-locked' : '', !unlocked && !secretLegend ? 'form-locked' : ''].filter(Boolean).join(' ');
+            const showName = unlocked || secretLegend;
+            return `<label class="${optionClass}"><input type="radio" name="deoxys-form" value="${form}" ${form === currentForm ? 'checked' : ''} ${unlocked ? '' : 'disabled'}><span class="team-appearance-card">${preview}<span><strong>${showName ? formatPokemonFormDisplayName(data.name) : '????'}</strong>${!unlocked && !secretLegend ? `<small>${lockText}</small>` : ''}</span></span></label>`;
         }).join('')}`;
         const shinyToggle = document.getElementById('deoxys-shiny-toggle');
         shinyToggle.hidden = !this.game.gameState.shinyDex?.[id];
         let isShowingShiny = !shinyToggle.hidden && this.game.gameState.pokedexDisplay?.[id] === 'shiny';
         const updateDeoxysPreviews = () => options.querySelectorAll('[data-deoxys-preview]').forEach(image => {
             const form = image.dataset.deoxysPreview;
-            if (this.game.isPokemonFormUnlocked(id, form)) image.src = getPokemonFormSpriteUrl(id, form, isShowingShiny);
+            if (this.game.isPokemonFormUnlocked(id, form) || (id === 493 && form === 'legend')) {
+                image.src = getPokemonFormSpriteUrl(id, form, isShowingShiny);
+            }
         });
         options.onchange = updateDeoxysPreviews;
         shinyToggle.setAttribute('aria-pressed', String(isShowingShiny));
@@ -2891,13 +2890,15 @@ const calyrexRiderBadgeHtml = Number(pokemonId) === 898 && this.game.isCalyrexFu
                 const typeBadges = this.game.getPokemonTypes(id).map(t =>
                     `<span class="type-badge ${t}">${TYPE_NAMES[t] || t}</span>`
                 ).join(' ');
+                const formLabel = this.game.getPokemonFormDisplayLabel(id);
 
                 entry.innerHTML = `
                     <div class="dex-header">
                         <div class="dex-sprite"><img loading="lazy" src="${getPokemonSpriteUrl(id)}" alt="${data.name}" onerror="fallbackPokemonSprite(this, ${id}, false, '?')"></div>
                         <div class="dex-header-info">
                             <div class="dex-number">#${String(id).padStart(3, '0')}</div>
-                            <div class="dex-name">${data.name}</div>
+                            <div class="dex-name">${this.game.getPokemonDisplayName(id)}</div>
+                            ${formLabel ? `<div class="dex-form-label ${this._getPokemonFormBadgeClass(id)}"><span>${formLabel}</span></div>` : ''}
                             ${typeBadges ? `<div class="dex-types">${typeBadges}</div>` : ''}
                         </div>
                     </div>
@@ -2914,9 +2915,6 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
                 : Number(id) === 898 && this.game.isCalyrexFused()
                     ? !!this.game.gameState.calyrexFusionShiny
                     : this.game.gameState.pokedexDisplay[id] === 'shiny';
-            const deoxysForm = this.game.gameState.pokemonForms?.[386] || 'normal';
-            const deoxysFormNames = { normal: '普通', attack: '攻擊', defense: '防禦', speed: '速度' };
-
             const typeBadges = this.game.getPokemonTypes(id).map(t =>
                     `<span class="type-badge ${t}">${TYPE_NAMES[t] || t}</span>`
                 ).join(' ');
@@ -2930,9 +2928,8 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
             const spriteUrl = POKEMON_FORM_DATA[id] || Number(id) === 386 || isKyuremFused
                 ? getPokemonFormSpriteUrl(id, form, isShowingShiny, isKyuremOverdrive)
                 : this.game.getPokedexSpriteUrl(id);
-            const displayName = isKyuremFused || Number(id) === 800 || Number(id) === 898
-                ? this.game.getPokemonFormData(id)?.name || data.name
-                : data.name;
+            const displayName = this.game.getPokemonDisplayName(id);
+            const formLabel = this.game.getPokemonFormDisplayLabel(id);
                 
                 // 使用快取的戰力和潛力（若有），否則現算
                 const cached = this._pokedexCache[id];
@@ -3003,7 +3000,8 @@ const isKyuremOverdrive = Number(id) === 646 && this.game.isKyuremOverdrive();
                         <div class="dex-sprite${isShowingShiny ? ' shiny' : ''}"><img loading="lazy" src="${spriteUrl}" alt="${data.name}" onerror="fallbackPokemonSprite(this, ${id}, ${!!isShowingShiny}, '?')"></div>
                         <div class="dex-header-info">
                             <div class="dex-number">#${String(id).padStart(3, '0')}</div>
-                            <div class="dex-name">${displayName}${[800, 898].includes(Number(id)) ? '' : POKEMON_FORM_DATA[id] ? `（${formatPokemonFormDisplayName(POKEMON_FORM_DATA[id].forms[form]?.name || '????')}）` : Number(id) === 386 ? `（${formatPokemonFormDisplayName(deoxysFormNames[deoxysForm] || '普通')}）` : ''}</div>
+                            <div class="dex-name">${displayName}</div>
+                            ${formLabel ? `<div class="dex-form-label ${this._getPokemonFormBadgeClass(id)}"><span>${formLabel}</span></div>` : ''}
                             ${(is6V || hasShiny || isKyuremOverdrive) ? `<div class="dex-markers">${is6V ? '<span class="route-badge-6v dex-6v-badge" title="六項個體值皆為 31">6V</span>' : ''}${hasShiny ? '<span class="dex-shiny-badge" title="已捕獲閃光">✨</span>' : ''}${isKyuremOverdrive ? '<span class="kyurem-overdrive-badge">超頻驅動</span>' : ''}</div>` : ''}
                             <div class="dex-types">${typeBadges}</div>
                         </div>

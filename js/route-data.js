@@ -2953,7 +2953,7 @@ const REGIONS = {
                     { id: 1069, weight: 8, levelRange: [16676, 17999] },   // Mega路卡利歐
                     { id: 1073, weight: 8, levelRange: [16676, 17999] },   // Mega蒂安希
                     { id: 1065, weight: 7, levelRange: [16676, 17999] },   // Mega拉帝歐斯
-                    { id: 1066, weight: 3, levelRange: [17558, 17999] },   // Mega裂空座
+                    { id: 1066, weight: 3, levelRange: [17558, 17999] },   // Mega烈空坐
                 ]
             },
         ]

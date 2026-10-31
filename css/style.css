@@ -327,6 +327,21 @@ body {
     margin: 0;
 }
 
+.pokemon-form-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 18px;
+    padding: 1px 7px;
+    border: 1px solid rgba(77, 243, 220, .3);
+    border-radius: 999px;
+    background: rgba(77, 243, 220, .1);
+    color: var(--accent-light);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
 
 
 /* 第3行：血條 */
@@ -991,6 +1006,7 @@ body {
 
 .log-signature-attack .log-message {
     background: linear-gradient(90deg, #55f3ff, #c49aff 45%, #ff87d0 75%, #ffe27a);
+    background-size: 220% 100%;
     background-clip: text;
     -webkit-background-clip: text;
     color: transparent;
@@ -998,6 +1014,21 @@ body {
     font-weight: 800;
     font-size: 12px;
     filter: drop-shadow(0 0 3px rgba(102, 224, 255, .38));
+    animation: signature-log-shimmer 2.4s ease-in-out infinite alternate, signature-log-glow 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes signature-log-shimmer {
+    from { background-position: 0% 50%; }
+    to { background-position: 100% 50%; }
+}
+
+@keyframes signature-log-glow {
+    from { filter: drop-shadow(0 0 3px rgba(102, 224, 255, .38)) drop-shadow(0 0 5px rgba(196, 154, 255, .12)); }
+    to { filter: drop-shadow(0 0 7px rgba(102, 224, 255, .68)) drop-shadow(0 0 14px rgba(196, 154, 255, .42)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .log-signature-attack .log-message { animation: none; }
 }
 
 .pokemon-battle-info .terapagos-battle-energy .terapagos-energy-track {
@@ -1664,6 +1695,8 @@ body {
     font-size: 14px;
     font-weight: bold;
 }
+
+.pokedex-entry .dex-form-label { margin-top: 3px; width: fit-content; }
 
 .dex-6v-badge {
     margin-left: 0;
